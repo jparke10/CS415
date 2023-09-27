@@ -1,12 +1,12 @@
 CC=gcc
 CFLAGS=-Wall -I.
 
-all: a.out
+all: lab0.out
 
-a.out: hello.o
+lab0.out: lab0.o
 	$(CC) $(CFLAGS) $<
 
-hello.o: hello.c
+lab0.o: lab0.c
 	$(CC) $(CFLAGS) -c $<
 
 clean:
