@@ -4,7 +4,7 @@ CFLAGS=-Wall -I.
 all: lab0.out
 
 lab0.out: lab0.o
-	$(CC) $(CFLAGS) $<
+	$(CC) $(CFLAGS) -o $@ $<
 
 lab0.o: lab0.c
 	$(CC) $(CFLAGS) -c $<
