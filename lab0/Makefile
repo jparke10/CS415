@@ -10,4 +10,4 @@ lab0.o: lab0.c
 	$(CC) $(CFLAGS) -c $<
 
 clean:
-	rm -f core *.o a.out
+	rm -f core *.o lab0.out
