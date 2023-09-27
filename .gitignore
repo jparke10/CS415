@@ -33,3 +33,7 @@
 
 # Visual Studio Code supporting files
 .vscode
+
+# Turned in assignments
+*.tar
+*.zip
