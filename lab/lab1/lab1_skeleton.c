@@ -36,7 +36,13 @@ int main(int argc, char const *argv[])
 	while (getline (&line_buf, &len, inFPtr) != -1)
 	{
 		printf ("Line %d:\n", ++line_num);
-
+		// int count_token test code
+		/*
+		int tokens = count_token(line_buf, ";");
+		printf("Number of tokens: %d\n", tokens);
+		printf("Line %d: %s\n", line_num, line_buf);
+		*/
+		
 		//tokenize line buffer
 		//large token is seperated by ";"
 		large_token_buffer = str_filler (line_buf, ";");
