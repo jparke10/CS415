@@ -6,7 +6,7 @@ void lfcat()
 	/* Get the current directory with getcwd() */
 	char* path_buf = malloc(PATH_MAX);
 	char* pathname = getcwd(path_buf, PATH_MAX);
-	// construct dash delimiting string for command.c:42
+	// construct dash delimiting string for command.c:41
 	char* dash = malloc(82);
 	dash[0] = '\n';
 	memset(dash + 1, '-', 80);
