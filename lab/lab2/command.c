@@ -50,6 +50,5 @@ void lfcat()
 	stdout = fdopen(0, "w");
 	/*close the directory you were reading from using closedir() */
 	closedir(dp);
-
 	free(path_buf);
 }
