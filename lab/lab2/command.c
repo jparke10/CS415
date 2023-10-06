@@ -14,6 +14,10 @@ void lfcat()
 	/* Open the dir using opendir() */
 	DIR* dp;
 	dp = opendir(pathname);
+	if (dp == NULL) {
+		fprintf(stderr, "Unable to open directory %s\n", pathname);
+		exit(EXIT_FAILURE);
+	}
 	struct dirent* dirp;
 	/* redirect stdout to file output */
 	freopen("output.txt", "w", stdout);
@@ -24,14 +28,18 @@ void lfcat()
 		// if (dirp->d_type == DT_REG)
 		//     printf("File: %s\n", dirp->d_name);	
 		/* Option: use an if statement to skip any names that are not readable files (e.g. ".", "..", "main.c", "lab2.exe", "output.txt" */
-		if (dirp->d_type == DT_REG &&
-			strcmp(dirp->d_name, "output.txt") != 0) {
+		if (dirp->d_type == DT_REG) {
+			if (!strcmp(dirp->d_name, "output.txt") ||
+				!strcmp(dirp->d_name, "lab2.exe"))
+				continue;
 			char* line_buf = NULL;
 			size_t n = 0;
 			/* Open the file */
 			FILE* file_in = fopen(dirp->d_name, "r");
-			if (file_in == NULL)
+			if (file_in == NULL) {
+				fprintf(stderr, "Unable to open file %s\n", dirp->d_name);
 				exit(EXIT_FAILURE);
+			}
 			/* Read in each line using getline() */
 			while (getline(&line_buf, &n, file_in) != EOF) {
 				/* Write the line to stdout */
