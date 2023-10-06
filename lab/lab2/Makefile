@@ -4,7 +4,7 @@ CFLAGS=-g -Wall
 all : lab2.exe
 
 lab2.exe: command.o main.o
-	$(CC) $(CFLAGS) $^ 
+	$(CC) $(CFLAGS) -o $@ $^
 
 command.o: command.c
 	$(CC) $(CFLAGS) -c $^
