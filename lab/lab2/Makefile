@@ -13,4 +13,4 @@ main.o: main.c
 	$(CC) $(CFLAGS) -c $^
 
 clean:
-	rm a.out command.o main.o
+	rm lab2.exe command.o main.o
