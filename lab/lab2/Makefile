@@ -1,9 +1,9 @@
 CC=gcc
 CFLAGS=-g -Wall
 
-all : a.out
+all : lab2.exe
 
-a.out: command.o main.o
+lab2.exe: command.o main.o
 	$(CC) $(CFLAGS) $^ 
 
 command.o: command.c
