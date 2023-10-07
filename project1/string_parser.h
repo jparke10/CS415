@@ -16,6 +16,7 @@
 
 #define _GUN_SOURCE
 
+/* string parsing types */
 
 typedef struct
 {
