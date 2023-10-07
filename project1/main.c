@@ -13,7 +13,6 @@ void shellInteractiveMode() {
 }
 
 int main(int argc, char** argv) {
-    (void) argv;
     // checking for command line argument
     switch (argc) {
         case 1:
