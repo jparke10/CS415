@@ -22,9 +22,14 @@ void shellFileMode(char* filename) {
         command_buffer = str_filler(line_buf, ";");
         for (int i = 0; command_buffer.command_list[i] != NULL; i++) {
             parameter_buffer = str_filler(command_buffer.command_list[i], " ");
-
+            findAndExecute(&parameter_buffer);
+            free_command_line(&parameter_buffer);
+            memset(&parameter_buffer, 0, 0);
         }
+        free_command_line(&command_buffer);
+        memset(&command_buffer, 0, 0);
     }
+    free(line_buf);
 }
 
 void shellInteractiveMode() {
