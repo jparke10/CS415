@@ -69,14 +69,20 @@ void makeDir(char *dirName) {
     made = syscall(SYS_mkdirat, fd, dirName, mode);
     if (made == -1) {
         fprintf(stderr,
-                "Error occurred while trying to make directory %s\n",
+                "Error occurred while creating directory %s\n",
                 dirName);
         exit(EXIT_FAILURE);
     }
 }
 
 void changeDir(char *dirName) {
-
+    long changed = syscall(SYS_chdir, dirName);
+    if (changed == -1) {
+        fprintf(stderr,
+                "Error occurred while changing to directory %s\n",
+                dirName);
+        exit(EXIT_FAILURE);
+    }
 }
 
 void copyFile(char *sourcePath, char *destinationPath) {
