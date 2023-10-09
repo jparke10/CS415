@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "string_parser.h"
-#include "command.h"
 
 #define _GNU_SOURCE
 #define LINE_MAX 128
@@ -22,7 +21,7 @@ void shellInteractiveMode() {
         command_buffer = str_filler(line_buf, ";");
         for (int i = 0; command_buffer.command_list[i] != NULL; i++) {
             parameter_buffer = str_filler(command_buffer.command_list[i], " ");
-            
+
         }
         printf(">>> ");
     }
