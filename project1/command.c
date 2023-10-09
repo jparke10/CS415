@@ -29,6 +29,7 @@ void listDir() {
     if (fd == -1) {
         fprintf(stderr, "Error: could not open current directory for listing\n");
         fprintf(stderr, "Check your read permissions for the current directory\n");
+        close(fd);
         exit(EXIT_FAILURE);
     }
     while ((nread = syscall(SYS_getdents64, fd, buf, BUF_SIZE)) != 0) {
@@ -57,16 +58,17 @@ void showCurrentDir() {
 }
 
 void makeDir(char *dirName) {
-    int fd, made;
+    int fd;
     // create new directory with full permissions
     mode_t mode = 0777;
     fd = open(".", O_RDONLY | O_DIRECTORY);
     if (fd == -1) {
         fprintf(stderr, "Error: could not open current directory for new creation\n");
-        fprintf(stderr, "Check your read permissions for the current directory\n");
+        fprintf(stderr, "Check your write permissions for the current directory\n");
+        close(fd);
         exit(EXIT_FAILURE);
     }
-    made = syscall(SYS_mkdirat, fd, dirName, mode);
+    int made = syscall(SYS_mkdirat, fd, dirName, mode);
     if (made == -1) {
         fprintf(stderr,
                 "Error occurred while creating directory %s\n",
@@ -76,7 +78,7 @@ void makeDir(char *dirName) {
 }
 
 void changeDir(char *dirName) {
-    long changed = syscall(SYS_chdir, dirName);
+    int changed = syscall(SYS_chdir, dirName);
     if (changed == -1) {
         fprintf(stderr,
                 "Error occurred while changing to directory %s\n",
@@ -86,7 +88,16 @@ void changeDir(char *dirName) {
 }
 
 void copyFile(char *sourcePath, char *destinationPath) {
+    char buf[BUF_SIZE];
+    int fd_src, fd_dst;
+    fd_src = open(sourcePath, O_RDONLY);
+    if (fd_src == -1) {
+        fprintf(stderr, "Error opening file %s\n", sourcePath);
+        close(fd_src);
+        exit(EXIT_FAILURE);
+    }
 
+    
 }
 
 void moveFile(char *sourcePath, char *destinationPath) {
