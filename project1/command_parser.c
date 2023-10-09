@@ -25,40 +25,31 @@ const func_ptr func_ptrs[] = {
 };
 
 void findAndExecute(command_line* tokens) {
+    // boolean for printed error messages
+    char command_found = 0;
     for (int i = 0; i < num_commands; i++) {
         if (strcmp(tokens->command_list[0], command_names[i]) == 0) {
+            command_found++;
             // account NULL for last token - "2-based" numbering
             // 2 would be no parameters, 3 - 1 parameter, etc
             switch (tokens->num_token) {
                 case 2:
-                    if (func_ptrs[i].func_no_param == NULL) {
-                        printf("Error! Unsupported parameters for command: %s\n",
-                               tokens->command_list[0]);
-                        return;
-                    } else
+                    if (func_ptrs[i].func_no_param != NULL)
                         return func_ptrs[i].func_no_param();
                 case 3:
-                    if (func_ptrs[i].func_one_param == NULL) {
-                        printf("Error! Unsupported parameters for command: %s\n",
-                               tokens->command_list[0]);
-                        return;
-                    } else
+                    if (func_ptrs[i].func_one_param != NULL)
                         return func_ptrs[i].func_one_param(tokens->command_list[1]);
                 case 4:
-                    if (func_ptrs[i].func_two_param == NULL) {
-                        printf("Error! Unsupported parameters for command: %s\n",
-                               tokens->command_list[0]);
-                        return;
-                    } else
+                    if (func_ptrs[i].func_two_param != NULL)
                         return func_ptrs[i].func_two_param(tokens->command_list[1],
                                                            tokens->command_list[2]);
-                default:
-                    printf("Error! Unsupported parameters for command: %s\n",
-                           tokens->command_list[0]);
             }
         }
     }
-    // if command not found in loop, it doesn't exist
-    printf("Error! Unrecognized command: %s\n", tokens->command_list[0]);
+    // if not returned from switch, print appropriate error message
+    if (command_found)
+        printf("Error! Unsupported parameters for command: %s\n", tokens->command_list[0]);
+    else
+        printf("Error! Unrecognized command: %s\n", tokens->command_list[0]);
     return;
 }
