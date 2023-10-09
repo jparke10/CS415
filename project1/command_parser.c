@@ -35,26 +35,23 @@ void findAndExecute(command_line* tokens) {
                         printf("Error! Unsupported parameters for command: %s\n",
                                tokens->command_list[0]);
                         return;
-                    } else {
+                    } else
                         return func_ptrs[i].func_no_param();
-                    }
                 case 3:
                     if (func_ptrs[i].func_one_param == NULL) {
                         printf("Error! Unsupported parameters for command: %s\n",
                                tokens->command_list[0]);
                         return;
-                    } else {
+                    } else
                         return func_ptrs[i].func_one_param(tokens->command_list[1]);
-                    }
                 case 4:
                     if (func_ptrs[i].func_two_param == NULL) {
                         printf("Error! Unsupported parameters for command: %s\n",
                                tokens->command_list[0]);
                         return;
-                    } else {
+                    } else
                         return func_ptrs[i].func_two_param(tokens->command_list[1],
                                                            tokens->command_list[2]);
-                    }
                 default:
                     printf("Error! Unsupported parameters for command: %s\n",
                            tokens->command_list[0]);
