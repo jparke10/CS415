@@ -29,7 +29,7 @@ void findAndExecute(command_line* tokens) {
     char command_found = 0;
     for (int i = 0; i < num_commands; i++) {
         if (strcmp(tokens->command_list[0], command_names[i]) == 0) {
-            command_found++;
+            command_found = 1;
             // account NULL for last token - "2-based" numbering
             // 2 would be no parameters, 3 - 1 parameter, etc
             switch (tokens->num_token) {
