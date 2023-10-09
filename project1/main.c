@@ -7,7 +7,23 @@
 #define LINE_MAX 128
 
 void shellFileMode(char* filename) {
+    FILE* to_parse = fopen(filename, "r");
+    if (to_parse == NULL) {
+        fprintf(stderr, "File %s could not be opened\n", filename);
+        fprintf(stderr, "Check file path and ensure file has read permission\n");
+        exit(EXIT_FAILURE);
+    }
+    command_line command_buffer;
+    command_line parameter_buffer;
+    size_t len = LINE_MAX;
+    char* line_buf = malloc(len);
+    while (getline(&line_buf, &len, to_parse) != EOF) {
+        command_buffer = str_filler(line_buf, ";");
+        for (int i = 0; command_buffer.command_list[i] != NULL; i++) {
+            parameter_buffer = str_filler(command_buffer.command_list[i], " ");
 
+        }
+    }
 }
 
 void shellInteractiveMode() {
