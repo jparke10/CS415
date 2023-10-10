@@ -104,17 +104,18 @@ void copyFile(char *sourcePath, char *destinationPath) {
     int fd_src, fd_dst;
     fd_src = open(sourcePath, O_RDONLY);
     if (fd_src == -1) {
-        fprintf(stderr, "Error opening file %s\n", sourcePath);
+        printf("Source file %s could not be copied\n", sourcePath);
         close(fd_src);
-        exit(EXIT_FAILURE);
+        return;
     }
     fd_dst = open(destinationPath, O_WRONLY | O_CREAT,
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd_dst == -1) {
-        fprintf(stderr, "Error opening file %s for copying\n", destinationPath);
-        fprintf(stderr, "Check your write permissions\n");
+        printf("Error opening file %s for copying\n", destinationPath);
+        printf("Check your write permissions\n");
+        close(fd_src);
         close(fd_dst);
-        exit(EXIT_FAILURE);
+        return;
     }
     while (read(fd_src, &buf, 1)) {
         write(fd_dst, &buf, 1);
@@ -127,17 +128,18 @@ void moveFile(char *sourcePath, char *destinationPath) {
     int fd_src, fd_dst;
     fd_src = open(sourcePath, O_RDONLY);
     if (fd_src == -1) {
-        fprintf(stderr, "Error opening file %s\n", sourcePath);
+        printf("Error opening file %s\n", sourcePath);
         close(fd_src);
-        exit(EXIT_FAILURE);
+        return;
     }
     fd_dst = open(destinationPath, O_WRONLY | O_CREAT,
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd_dst == -1) {
-        fprintf(stderr, "Error opening file %s for moving\n", destinationPath);
-        fprintf(stderr, "Check your write permissions\n");
+        printf("Error opening file %s for moving\n", destinationPath);
+        printf("Check your write permissions\n");
+        close(fd_src);
         close(fd_dst);
-        exit(EXIT_FAILURE);
+        return;
     }
 }
 
