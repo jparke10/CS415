@@ -8,6 +8,7 @@
 #include <sys/syscall.h>
 #include <limits.h>
 #include <string.h>
+#include <errno.h>
 #include "string_parser.h"
 #include "command.h"
 
@@ -27,15 +28,15 @@ void listDir() {
 
     fd = open(".", O_RDONLY | O_DIRECTORY);
     if (fd == -1) {
-        fprintf(stderr, "Error: could not open current directory for listing\n");
-        fprintf(stderr, "Check your read permissions for the current directory\n");
+        printf("Error: could not open current directory for listing\n");
+        printf("Check your read permissions for the current directory\n");
         close(fd);
-        exit(EXIT_FAILURE);
+        return;
     }
     while ((nread = syscall(SYS_getdents64, fd, buf, BUF_SIZE)) != 0) {
         if (nread == -1) {
-            fprintf(stderr, "Error occurred while trying to list current directory");
-            exit(EXIT_FAILURE);
+            printf("Error occurred while trying to list current directory");
+            break;
         }
         for (bpos = 0; bpos < nread; ) {
             d = (struct linux_dirent*) (buf + bpos);
@@ -44,15 +45,14 @@ void listDir() {
         }
     }
     printf("\n");
+    close(fd);
 }
 
 void showCurrentDir() {
     char buf[BUF_SIZE];
     long cwd = syscall(SYS_getcwd, buf, BUF_SIZE);
     if (cwd == -1) {
-        fprintf(stderr,
-                "Error occurred while getting current working directory\n");
-        exit(EXIT_FAILURE);
+        printf("Error occurred while getting current working directory\n");
     } else
         printf("%s\n", buf);
 }
@@ -63,32 +63,44 @@ void makeDir(char *dirName) {
     mode_t mode = 0777;
     fd = open(".", O_RDONLY | O_DIRECTORY);
     if (fd == -1) {
-        fprintf(stderr, "Error: could not open current directory for new creation\n");
-        fprintf(stderr, "Check your write permissions for the current directory\n");
+        printf("Error: could not open current directory for new creation\n");
+        printf("Check your write permissions for the current directory\n");
         close(fd);
-        exit(EXIT_FAILURE);
+        return;
     }
     int made = syscall(SYS_mkdirat, fd, dirName, mode);
+    close(fd);
     if (made == -1) {
-        fprintf(stderr,
-                "Error occurred while creating directory %s\n",
-                dirName);
-        exit(EXIT_FAILURE);
+        switch (errno) {
+            case EACCES:
+                printf("Error while creating directory: permission denied\n");
+            case EEXIST:
+                printf("Error while creating directory: file already exists\n");
+            default:
+                printf("Unknown error occurred while creating directory\n");
+        }
     }
 }
 
 void changeDir(char *dirName) {
     int changed = syscall(SYS_chdir, dirName);
     if (changed == -1) {
-        fprintf(stderr,
-                "Error occurred while changing to directory %s\n",
-                dirName);
-        exit(EXIT_FAILURE);
+        printf("Error occurred while changing to directory %s: ", dirName);
+        switch (errno) {
+            case EACCES:
+                printf("permission denied\n");
+            case ENOENT:
+                printf("directory does not exist\n");
+            case ENOTDIR:
+                printf("not a directory\n");
+            default:
+                printf("unknown error\n");
+        }
     }
 }
 
 void copyFile(char *sourcePath, char *destinationPath) {
-    char buf[BUF_SIZE];
+    char buf;
     int fd_src, fd_dst;
     fd_src = open(sourcePath, O_RDONLY);
     if (fd_src == -1) {
@@ -96,12 +108,37 @@ void copyFile(char *sourcePath, char *destinationPath) {
         close(fd_src);
         exit(EXIT_FAILURE);
     }
-
-    
+    fd_dst = open(destinationPath, O_WRONLY | O_CREAT,
+                  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (fd_dst == -1) {
+        fprintf(stderr, "Error opening file %s for copying\n", destinationPath);
+        fprintf(stderr, "Check your write permissions\n");
+        close(fd_dst);
+        exit(EXIT_FAILURE);
+    }
+    while (read(fd_src, &buf, 1)) {
+        write(fd_dst, &buf, 1);
+    }
+    close(fd_src);
+    close(fd_dst);
 }
 
 void moveFile(char *sourcePath, char *destinationPath) {
-
+    int fd_src, fd_dst;
+    fd_src = open(sourcePath, O_RDONLY);
+    if (fd_src == -1) {
+        fprintf(stderr, "Error opening file %s\n", sourcePath);
+        close(fd_src);
+        exit(EXIT_FAILURE);
+    }
+    fd_dst = open(destinationPath, O_WRONLY | O_CREAT,
+                  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    if (fd_dst == -1) {
+        fprintf(stderr, "Error opening file %s for moving\n", destinationPath);
+        fprintf(stderr, "Check your write permissions\n");
+        close(fd_dst);
+        exit(EXIT_FAILURE);
+    }
 }
 
 void deleteFile(char *filename) {
