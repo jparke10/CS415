@@ -71,13 +71,17 @@ void makeDir(char *dirName) {
     int made = syscall(SYS_mkdirat, fd, dirName, mode);
     close(fd);
     if (made == -1) {
+        printf("Error while creating directory %s: ", dirName);
         switch (errno) {
             case EACCES:
-                printf("Error while creating directory: permission denied\n");
+                printf("permission denied\n");
+                break;
             case EEXIST:
-                printf("Error while creating directory: file already exists\n");
+                printf("directory already exists\n");
+                break;
             default:
-                printf("Unknown error occurred while creating directory\n");
+                printf("unknown error\n");
+                break;
         }
     }
 }
@@ -89,12 +93,16 @@ void changeDir(char *dirName) {
         switch (errno) {
             case EACCES:
                 printf("permission denied\n");
+                break;
             case ENOENT:
                 printf("directory does not exist\n");
+                break;
             case ENOTDIR:
                 printf("not a directory\n");
+                break;
             default:
                 printf("unknown error\n");
+                break;
         }
     }
 }
