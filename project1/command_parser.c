@@ -36,13 +36,16 @@ void findAndExecute(command_line* tokens) {
                 case 2:
                     if (func_ptrs[i].func_no_param != NULL)
                         return func_ptrs[i].func_no_param();
+                    else break;
                 case 3:
                     if (func_ptrs[i].func_one_param != NULL)
                         return func_ptrs[i].func_one_param(tokens->command_list[1]);
+                    else break;
                 case 4:
                     if (func_ptrs[i].func_two_param != NULL)
                         return func_ptrs[i].func_two_param(tokens->command_list[1],
                                                            tokens->command_list[2]);
+                    else break;
             }
         }
     }
