@@ -13,6 +13,7 @@ const char* command_names[] = {
 
 const int num_commands = sizeof(command_names) / sizeof(char* );
 
+// if only C had polymorphism...
 const func_ptr func_ptrs[] = {
     {.func_no_param = &listDir},
     {.func_no_param = &showCurrentDir},
