@@ -30,6 +30,7 @@
 *.exe
 *.out
 *.app
+pseudo-shell
 
 # Visual Studio Code supporting files
 .vscode
