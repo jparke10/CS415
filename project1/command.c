@@ -14,6 +14,11 @@
 
 #define BUF_SIZE 1024
 
+// TODO:
+/*
+improve error handling
+*/
+
 struct linux_dirent {
     long d_ino;
     off_t d_off;
