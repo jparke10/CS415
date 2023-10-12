@@ -135,6 +135,7 @@ void copyFile(char *sourcePath, char *destinationPath) {
     }
     fd_dst = open(destinationPath, O_RDONLY | O_DIRECTORY);
     if (fd_dst != -1) {
+        close(fd_dst);
         command_line filename;
         filename = str_filler(sourcePath, "/");
         size_t new_path_size =
@@ -144,7 +145,6 @@ void copyFile(char *sourcePath, char *destinationPath) {
         strcat(create_path, "/");
         strcat(create_path, filename.command_list[filename.num_token - 2]);
         free_command_line(&filename);
-        close(fd_dst);
     }
     fd_dst = open(create_path, O_WRONLY | O_CREAT | O_TRUNC,
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
