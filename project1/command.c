@@ -163,51 +163,8 @@ void copyFile(char *sourcePath, char *destinationPath) {
 }
 
 void moveFile(char *sourcePath, char *destinationPath) {
-    char buf;
-    char* create_path = strdup(destinationPath);
-    int fd_src, fd_dst;
-    fd_src = open(sourcePath, O_RDONLY);
-    if (fd_src == -1) {
-        printf("Source file %s could not be read: ", sourcePath);
-        switch (errno) {
-            case EACCES:
-                printf("permission denied\n");
-                break;
-            default:
-                printf("unknown error\n");
-                break;
-        }
-        close(fd_src);
-        return;
-    }
-    fd_dst = open(destinationPath, O_RDONLY | O_DIRECTORY);
-    if (fd_dst != -1) {
-        command_line filename;
-        filename = str_filler(sourcePath, "/");
-        size_t new_path_size =
-            strlen(filename.command_list[filename.num_token - 2]) + 2;
-        create_path = realloc(create_path, sizeof(create_path) + new_path_size);
-        strcpy(create_path, destinationPath);
-        strcat(create_path, "/");
-        strcat(create_path, filename.command_list[filename.num_token - 2]);
-        free_command_line(&filename);
-        close(fd_dst);
-    }
-    fd_dst = open(create_path, O_WRONLY | O_CREAT | O_TRUNC,
-                  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-    if (fd_dst == -1) {
-        printf("Destination file %s could not be created: ", destinationPath);
-        switch (errno) {
-            case EACCES:
-                printf("permission denied\n");
-                break;
-            default:
-                printf("unknown error\n");
-                break;
-        }
-        close(fd_src);
-        return;
-    }
+    copyFile(sourcePath, destinationPath);
+    unlink(sourcePath);
 }
 
 void deleteFile(char *filename) {
