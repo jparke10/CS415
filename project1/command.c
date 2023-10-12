@@ -21,6 +21,8 @@ struct linux_dirent {
     char d_name[];
 };
 
+int copy_success;
+
 void listDir() {
     int fd, bpos, nread;
     char buf[BUF_SIZE];
@@ -108,6 +110,7 @@ void changeDir(char *dirName) {
 }
 
 void copyFile(char *sourcePath, char *destinationPath) {
+    copy_success = -1;
     char buf;
     char* create_path = strdup(destinationPath);
     int fd_src, fd_dst;
@@ -160,17 +163,55 @@ void copyFile(char *sourcePath, char *destinationPath) {
     close(fd_src);
     close(fd_dst);
     free(create_path);
+    copy_success = 0;
 }
 
 void moveFile(char *sourcePath, char *destinationPath) {
     copyFile(sourcePath, destinationPath);
-    unlink(sourcePath);
+    if (copy_success == 0)
+        unlink(sourcePath);
 }
 
 void deleteFile(char *filename) {
-
+    int deleted = unlink(filename);
+    if (deleted == -1) {
+        printf("Error while removing file %s: ", filename);
+        switch (errno) {
+            case EISDIR:
+                printf("is a directory\n");
+                break;
+            default:
+                printf("unknown error\n");
+                break;
+        }
+    }
 }
 
 void displayFile(char *filename) {
-
+    int fd = open(filename, O_RDONLY);
+    if (fd == -1) {
+        printf("File %s could not be opened: ", filename);
+        switch (errno) {
+            case EACCES:
+                printf("permission denied\n");
+                break;
+            case ENOENT:
+                printf("file does not exist\n");
+                break;
+            default:
+                printf("unknown error\n");
+                break;
+        }
+        return;
+    }
+    off_t file_length = syscall(SYS_lseek, fd, 0, SEEK_END);
+    if (file_length == -1) {
+        printf("Error while trying to get length of file %s\n", filename);
+        return;
+    }
+    syscall(SYS_lseek, fd, 0, SEEK_SET);
+    char file[file_length];
+    ssize_t nread = read(fd, file, sizeof(file));
+    write(STDOUT_FILENO, file, nread);
+    write(STDOUT_FILENO, "\n", 1);
 }
