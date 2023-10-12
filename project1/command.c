@@ -14,11 +14,6 @@
 
 #define BUF_SIZE 1024
 
-// TODO:
-/*
-improve error handling
-*/
-
 struct linux_dirent {
     long d_ino;
     off_t d_off;
@@ -28,6 +23,30 @@ struct linux_dirent {
 
 int copy_success;
 
+// errno switcher for handling most syscall errors
+void handleError() {
+    switch (errno) {
+        case EEXIST:
+            printf("already exists\n");
+            break;
+        case ENOENT:
+            printf("does not exist\n");
+            break;
+        case ENOTDIR:
+            printf("not a directory\n");
+            break;
+        case EACCES:
+            printf("permission denied\n");
+            break;
+        case EISDIR:
+            printf("is a directory\n");
+            break;
+        default:
+            printf("unknown error\n");
+            break;
+    }
+}
+
 void listDir() {
     int fd, bpos, nread;
     char buf[BUF_SIZE];
@@ -36,10 +55,9 @@ void listDir() {
     fd = open(".", O_RDONLY | O_DIRECTORY);
     if (fd == -1) {
         printf("Error: could not open current directory for listing\n");
-        printf("Check your read permissions for the current directory\n");
-        close(fd);
         return;
     }
+    // getdents64 creates dirents in buf, which contain directory names
     while ((nread = syscall(SYS_getdents64, fd, buf, BUF_SIZE)) != 0) {
         if (nread == -1) {
             printf("Error occurred while trying to list current directory");
@@ -57,7 +75,7 @@ void listDir() {
 
 void showCurrentDir() {
     char buf[BUF_SIZE];
-    long cwd = syscall(SYS_getcwd, buf, BUF_SIZE);
+    int cwd = syscall(SYS_getcwd, buf, BUF_SIZE);
     if (cwd == -1) {
         printf("Error occurred while getting current working directory\n");
     } else
@@ -70,26 +88,14 @@ void makeDir(char *dirName) {
     mode_t mode = 0777;
     fd = open(".", O_RDONLY | O_DIRECTORY);
     if (fd == -1) {
-        printf("Error: could not open current directory for new creation\n");
-        printf("Check your write permissions for the current directory\n");
-        close(fd);
+        printf("Error: could not open current directory for creation\n");
         return;
     }
     int made = syscall(SYS_mkdirat, fd, dirName, mode);
     close(fd);
     if (made == -1) {
         printf("Error while creating directory %s: ", dirName);
-        switch (errno) {
-            case EACCES:
-                printf("permission denied\n");
-                break;
-            case EEXIST:
-                printf("directory already exists\n");
-                break;
-            default:
-                printf("unknown error\n");
-                break;
-        }
+        handleError();
     }
 }
 
@@ -97,69 +103,47 @@ void changeDir(char *dirName) {
     int changed = syscall(SYS_chdir, dirName);
     if (changed == -1) {
         printf("Error occurred while changing to directory %s: ", dirName);
-        switch (errno) {
-            case EACCES:
-                printf("permission denied\n");
-                break;
-            case ENOENT:
-                printf("directory does not exist\n");
-                break;
-            case ENOTDIR:
-                printf("not a directory\n");
-                break;
-            default:
-                printf("unknown error\n");
-                break;
-        }
+        handleError();
     }
 }
 
 void copyFile(char *sourcePath, char *destinationPath) {
     copy_success = -1;
     char buf;
+    // duplicate destinationPath for possible reconstruction later
     char* create_path = strdup(destinationPath);
     int fd_src, fd_dst;
     fd_src = open(sourcePath, O_RDONLY);
     if (fd_src == -1) {
         printf("Source file %s could not be read: ", sourcePath);
-        switch (errno) {
-            case EACCES:
-                printf("permission denied\n");
-                break;
-            default:
-                printf("unknown error\n");
-                break;
-        }
-        close(fd_src);
+        handleError();
         return;
     }
+    // try to first open destinationPath as directory
     fd_dst = open(destinationPath, O_RDONLY | O_DIRECTORY);
+    // if it's a directory, construct new path 
     if (fd_dst != -1) {
         close(fd_dst);
         command_line filename;
         filename = str_filler(sourcePath, "/");
+        /* +2 to account for / and \0 characters
+           [filename.num_token - 2] is the last non-NULL token in sourcePath
+           aka, the source file's actual name */
         size_t new_path_size =
             strlen(filename.command_list[filename.num_token - 2]) + 2;
-        create_path = realloc(create_path, sizeof(create_path) + new_path_size);
+        create_path = realloc(create_path, strlen(create_path) + new_path_size);
         strcpy(create_path, destinationPath);
         strcat(create_path, "/");
         strcat(create_path, filename.command_list[filename.num_token - 2]);
         free_command_line(&filename);
     }
+    // dst file will have generic 644 permissions
+    // O_TRUNC zeroes out destination file if it already exists
     fd_dst = open(create_path, O_WRONLY | O_CREAT | O_TRUNC,
                   S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd_dst == -1) {
         printf("Destination file %s could not be created: ", destinationPath);
-        switch (errno) {
-            case EACCES:
-                printf("permission denied\n");
-                break;
-            default:
-                printf("unknown error\n");
-                break;
-        }
-        close(fd_src);
-        close(fd_dst);
+        handleError();
         return;
     }
     while (read(fd_src, &buf, 1)) {
@@ -181,14 +165,7 @@ void deleteFile(char *filename) {
     int deleted = unlink(filename);
     if (deleted == -1) {
         printf("Error while removing file %s: ", filename);
-        switch (errno) {
-            case EISDIR:
-                printf("is a directory\n");
-                break;
-            default:
-                printf("unknown error\n");
-                break;
-        }
+        handleError();
     }
 }
 
@@ -196,22 +173,13 @@ void displayFile(char *filename) {
     int fd = open(filename, O_RDONLY);
     if (fd == -1) {
         printf("File %s could not be opened: ", filename);
-        switch (errno) {
-            case EACCES:
-                printf("permission denied\n");
-                break;
-            case ENOENT:
-                printf("file does not exist\n");
-                break;
-            default:
-                printf("unknown error\n");
-                break;
-        }
+        handleError();
         return;
     }
     off_t file_length = syscall(SYS_lseek, fd, 0, SEEK_END);
     if (file_length == -1) {
         printf("Error while trying to get length of file %s\n", filename);
+        close(fd);
         return;
     }
     syscall(SYS_lseek, fd, 0, SEEK_SET);
