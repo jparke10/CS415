@@ -176,6 +176,8 @@ void displayFile(char *filename) {
         handleError();
         return;
     }
+    // might be unsafe to load entire file into memory in this way
+    // but, reading line by line is slow
     off_t file_length = syscall(SYS_lseek, fd, 0, SEEK_END);
     if (file_length == -1) {
         printf("Error while trying to get length of file %s\n", filename);
