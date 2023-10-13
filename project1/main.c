@@ -6,40 +6,18 @@
 
 #define _GNU_SOURCE
 #define LINE_MAX 128
+#define INTERACTIVE_STREAM stdin
+#define INTERACTIVE_MODE 0
+#define FILE_MODE 1
 
-void shellFileMode(char* filename) {
-    FILE* to_parse = fopen(filename, "r");
-    if (to_parse == NULL) {
-        fprintf(stderr, "File %s could not be opened\n", filename);
-        fprintf(stderr, "Check file path and ensure file has read permission\n");
-        exit(EXIT_FAILURE);
-    }
+void shell(FILE* stream, int flag) {
     command_line command_buffer;
     command_line parameter_buffer;
     size_t len = LINE_MAX;
     char* line_buf = malloc(len);
-    while (getline(&line_buf, &len, to_parse) != EOF) {
-        command_buffer = str_filler(line_buf, ";");
-        for (int i = 0; command_buffer.command_list[i] != NULL; i++) {
-            parameter_buffer = str_filler(command_buffer.command_list[i], " ");
-            findAndExecute(&parameter_buffer);
-            free_command_line(&parameter_buffer);
-            memset(&parameter_buffer, 0, 0);
-        }
-        free_command_line(&command_buffer);
-        memset(&command_buffer, 0, 0);
-    }
-    free(line_buf);
-}
-
-void shellInteractiveMode() {
-    command_line command_buffer;
-    command_line parameter_buffer;
-    size_t len = LINE_MAX;
-    char* line_buf = malloc(len);
-
-    printf(">>> ");
-    while (getline(&line_buf, &len, stdin) != EOF) {
+    if (flag == INTERACTIVE_MODE)
+        printf(">>> ");
+    while (getline(&line_buf, &len, stream) != EOF) {
         command_buffer = str_filler(line_buf, ";");
         for (int i = 0; command_buffer.command_list[i] != NULL; i++) {
             parameter_buffer = str_filler(command_buffer.command_list[i], " ");
@@ -54,9 +32,11 @@ void shellInteractiveMode() {
         }
         free_command_line(&command_buffer);
         memset(&command_buffer, 0, 0);
-        printf(">>> ");
+        if (flag == INTERACTIVE_MODE)
+            printf(">>> ");
     }
-    printf("\n");
+    if (flag == INTERACTIVE_MODE)
+        printf("\n");
     free(line_buf);
 }
 
@@ -64,11 +44,13 @@ int main(int argc, char** argv) {
     // checking for command line argument
     switch (argc) {
         case 1:
-            shellInteractiveMode();
+            shell(INTERACTIVE_STREAM, INTERACTIVE_MODE);
             exit(EXIT_SUCCESS);
         case 3:
             if (strcmp(argv[1], "-f") == 0) {
-                shellFileMode(argv[2]);
+                FILE* execute = fopen(argv[2], "r");
+                shell(execute, FILE_MODE);
+                fclose(execute);
                 exit(EXIT_SUCCESS);
             }
     }
