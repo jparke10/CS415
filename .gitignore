@@ -38,3 +38,6 @@ pseudo-shell
 # Turned in assignments
 *.tar
 *.zip
+
+# Mac-specific files (created when writing reports)
+.DS_Store
