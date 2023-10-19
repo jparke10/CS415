@@ -39,6 +39,7 @@ iobound
 # Turned in assignments
 *.tar
 *.zip
+*.png
 
 # Mac-specific files (created when writing reports)
 .DS_Store
