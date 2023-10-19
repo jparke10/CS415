@@ -24,7 +24,27 @@ int main(int argc,char*argv[])
 	*	#4	wait for children processes to finish
 	*	#5	free any dynamic memory
 	*/
+	const char* command = "./iobound";
+	char* const command_argv[] = {"./iobound", "-seconds", "5", NULL};
 
+	const size_t processes = atoi(argv[1]);
+	pid_t pid, wpid;
+	pid_t* pid_array = malloc(sizeof(pid_t) * processes);
+	size_t i = 0;
+	while (i < processes) {
+		pid = fork();
+		if (pid < 0) {
+			fprintf(stderr, "error in fork\n");
+			exit(EXIT_FAILURE);
+		} else if (pid == 0) {
+			execvp(command, command_argv);
+		} else {
+			pid_array[i++] = pid;
+		}
+	}
+	script_print(pid_array, processes);
+	while ((wpid = wait(NULL)) > 0);
+	free(pid_array);
 	return 0;
 }
 
@@ -33,7 +53,7 @@ void script_print (pid_t* pid_ary, int size)
 {
 	FILE* fout;
 	fout = fopen ("top_script.sh", "w");
-	fprintf(fout, "#!/bin/bash\ntop");
+	fprintf(fout, "#!/bin/sh\ntop");
 	for (int i = 0; i < size; i++)
 	{
 		fprintf(fout, " -p %d", (int)(pid_ary[i]));
@@ -41,7 +61,7 @@ void script_print (pid_t* pid_ary, int size)
 	fprintf(fout, "\n");
 	fclose (fout);
 
-	char* top_arg[] = {"gnome-terminal", "--", "bash", "top_script.sh", NULL};
+	char* top_arg[] = {"bash", "top_script.sh", NULL};
 	pid_t top_pid;
 
 	top_pid = fork();
