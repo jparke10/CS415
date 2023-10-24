@@ -3,6 +3,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <string.h>
 #include "string_parser.h"
 
 #define _GNU_SOURCE
@@ -31,15 +32,28 @@ int main(int argc, char** argv) {
     free(buf);
     fseek(file_in, 0, SEEK_SET);
 
+    pid_t wpid;
     pid_t* pid_array = malloc(sizeof(pid_t) * num_lines);
     buf = malloc(LINE_MAX);
     buf_size = LINE_MAX;
     for (int i = 0; i < num_lines; i++) {
         getline(&buf, &buf_size, file_in);
         args = str_filler(buf, " ");
-        for (int j = 0; args.command_list[j] != NULL; j++) {
+        pid_array[i] = fork();
+        if (pid_array[i] < 0) {
+            fprintf(stderr, "Error in fork\n");
+            exit(EXIT_FAILURE);
+        } else if (pid_array[i] == 0) {
+            if ((execvp(args.command_list[0], args.command_list)) == -1) {
+                perror("Error launching child process");
+            }
+            exit(-1);
         }
+        free_command_line(&args);
+        memset(&args, 0, 0);
     }
+    while ((wpid = wait(NULL)) > 0);
+    free(pid_array);
     free(buf);
     fclose(file_in);
     exit(EXIT_SUCCESS);
