@@ -32,6 +32,7 @@
 *.app
 pseudo-shell
 iobound
+cpubound
 
 # Visual Studio Code supporting files
 .vscode
