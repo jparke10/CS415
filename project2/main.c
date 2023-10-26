@@ -13,7 +13,7 @@
 unsigned int count_lines(FILE* file) {
     char buf[BUF_SIZE];
     unsigned int count = 0;
-    for (;;) {
+    while (1) {
         size_t read = fread(buf, sizeof(char), BUF_SIZE, file);
         if (ferror(file)) {
             fprintf(stderr, "Error getting number of lines in file\n");
