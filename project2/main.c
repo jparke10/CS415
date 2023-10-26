@@ -22,6 +22,8 @@
 // Count of lines in file needed for pid array allocation
 unsigned int count_lines(FILE* file);
 
+void signaler(pid_t* pid_array, int size, int signal);
+
 int main(int argc, char** argv) {
     if (argc != 2) {
         fprintf(stderr, "Usage: %s [input TXT file]\n", argv[0]);
@@ -44,6 +46,10 @@ int main(int argc, char** argv) {
     sigset_t sigset;
     int sig;
 
+    sigemptyset(&sigset);
+    sigaddset(&sigset, SIGUSR1);
+    sigprocmask(SIG_BLOCK, &sigset, NULL);
+
     for (int i = 0; i < num_lines; i++) {
         // execute command vector parsing
         getline(&buf, &buf_size, file_in);
@@ -54,6 +60,8 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Error in forking parent process\n");
             exit(EXIT_FAILURE);
         } else if (pid_array[i] == 0) {
+            // initially wait for SIGUSR1 signal
+            sigwait(&sigset, &sig);
             if ((execvp(args.command_list[0], args.command_list)) == -1) {
                 perror("Error launching child process");
             }
@@ -62,6 +70,11 @@ int main(int argc, char** argv) {
         free_command_line(&args);
         memset(&args, 0, 0);
     }
+
+    signaler(pid_array, num_lines, SIGUSR1);
+    signaler(pid_array, num_lines, SIGSTOP);
+    signaler(pid_array, num_lines, SIGCONT);
+
     // wait for all child processes to finish
     while ((wpid = wait(NULL)) > 0);
     free(pid_array);
@@ -88,4 +101,11 @@ unsigned int count_lines(FILE* file) {
     }
     fseek(file, 0, SEEK_SET);
     return ++count;
+}
+
+void signaler(pid_t* pid_array, int size, int signal) {
+    sleep(3);
+    for (int i = 0; i < size; i++) {
+        kill(pid_array[i], signal);
+    }
 }
