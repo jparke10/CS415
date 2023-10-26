@@ -47,6 +47,8 @@ int main(int argc, char** argv) {
     int sig;
 
     sigemptyset(&sigset);
+    // add SIGUSR1 to blocked signals
+    // when sigwait is called by children, they'll wait for blocked SIGUSR1
     sigaddset(&sigset, SIGUSR1);
     sigprocmask(SIG_BLOCK, &sigset, NULL);
 
@@ -60,6 +62,7 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Error in forking parent process\n");
             exit(EXIT_FAILURE);
         } else if (pid_array[i] == 0) {
+            printf("child process %d waiting for SIGUSR1\n", getpid());
             // initially wait for SIGUSR1 signal
             sigwait(&sigset, &sig);
             if ((execvp(args.command_list[0], args.command_list)) == -1) {
@@ -76,7 +79,8 @@ int main(int argc, char** argv) {
     signaler(pid_array, num_lines, SIGCONT);
 
     // wait for all child processes to finish
-    while ((wpid = wait(NULL)) > 0);
+    while ((wpid = waitpid(-1, NULL, 0)) > 0);
+    printf("All processes finished\n");
     free(pid_array);
     free(buf);
     fclose(file_in);
@@ -104,8 +108,11 @@ unsigned int count_lines(FILE* file) {
 }
 
 void signaler(pid_t* pid_array, int size, int signal) {
+    // wait for some clarity on what program is doing
     sleep(3);
     for (int i = 0; i < size; i++) {
+        printf("parent %d signaling %s to child %d\n",
+                getpid(), strsignal(signal), pid_array[i]);
         kill(pid_array[i], signal);
     }
 }
