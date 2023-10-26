@@ -7,7 +7,28 @@
 #include "string_parser.h"
 
 #define _GNU_SOURCE
+#define BUF_SIZE 65536
 #define LINE_MAX 2048
+
+unsigned int count_lines(FILE* file) {
+    char buf[BUF_SIZE];
+    unsigned int count = 0;
+    for (;;) {
+        size_t read = fread(buf, sizeof(char), BUF_SIZE, file);
+        if (ferror(file)) {
+            fprintf(stderr, "Error getting number of lines in file\n");
+            exit(EXIT_FAILURE);
+        }
+        for (int i = 0; i < read; i++) {
+            if (buf[i] == '\n')
+                count++;
+        }
+        if(feof(file))
+            break;
+    }
+    fseek(file, 0, SEEK_SET);
+    return ++count;
+}
 
 int main(int argc, char** argv) {
     if (argc != 2) {
@@ -20,22 +41,11 @@ int main(int argc, char** argv) {
         exit(EXIT_FAILURE);
     }
     command_line args;
-    char* buf;
-    size_t buf_size;
-
-    fseek(file_in, 0, SEEK_END);
-    buf_size = ftell(file_in);
-    fseek(file_in, 0, SEEK_SET);
-    buf = malloc(buf_size);
-    fread(buf, sizeof(char), buf_size, file_in);
-    size_t num_lines = count_token(buf, "\n") - 1;
-    free(buf);
-    fseek(file_in, 0, SEEK_SET);
-
+    unsigned int num_lines = count_lines(file_in);
     pid_t wpid;
     pid_t* pid_array = malloc(sizeof(pid_t) * num_lines);
-    buf = malloc(LINE_MAX);
-    buf_size = LINE_MAX;
+    char* buf = malloc(LINE_MAX);
+    size_t buf_size = LINE_MAX;
     for (int i = 0; i < num_lines; i++) {
         getline(&buf, &buf_size, file_in);
         args = str_filler(buf, " ");
