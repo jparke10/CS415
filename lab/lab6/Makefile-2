@@ -1,0 +1,5 @@
+CC=gcc
+CFLAGS=-g
+
+hellomake: hellomake.o hellofunc.o
+	$(CC) $(CFLAGS) -o hellomake hellomake.o hellofunc.o
