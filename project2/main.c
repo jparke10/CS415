@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
+#include <errno.h>
 #include "MCP.h"
 
 int main(int argc, char** argv) {
@@ -45,7 +46,7 @@ int main(int argc, char** argv) {
             if ((execvp(args.command_list[0], args.command_list)) == -1) {
                 perror("Error launching child process");
             }
-            exit(-1);
+            exit(EXIT_SUCCESS);
         }
         free_command_line(&args);
         memset(&args, 0, 0);
@@ -62,12 +63,12 @@ int main(int argc, char** argv) {
     exit(EXIT_SUCCESS);
 }
 
-void signaler(pid_t* pid_array, int size, int signal) {
-    sleep(3);
-    for (int i = 0; i < size; i++) {
-        kill(pid_array[i], signal);
-    }
-}
+// void signaler(pid_t* pid_array, int size, int signal) {
+//     sleep(3);
+//     for (int i = 0; i < size; i++) {
+//         kill(pid_array[i], signal);
+//     }
+// }
 
 void usage(int argc, char** argv) {
     if (argc != 2) {
@@ -162,6 +163,7 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
     pid_t wpid;
 
     unsigned int processes_done = 0;
+    // array of process statuses
     int process_exited[num_processes];
     int status;
     unsigned int process_index = 0;
@@ -170,35 +172,47 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
     }
 
     // start first process, then enter loop
-    printf("starting child process %d\n", pid_array[0]);
     kill(pid_array[0], SIGCONT);
+    printf("Continued first child process %d\n", pid_array[0]);
     while (1) {
         // if current process has not exited, schedule the next one
         // wait until alarm handler has finished to continue scheduler
         if (process_exited[process_index] == 0) {
             alarm(2);
-            sigwait(&sigset, &sig);
+            if (sigwait(&sigset, &sig) > 0) {
+                fprintf(stderr, "Error occurred in wait for SIGALRM");
+                perror("");
+                exit(EXIT_FAILURE);
+            }
             // process gets its time slice, then stops
             kill(pid_array[process_index], SIGSTOP);
-            printf("stopped process %d\n", pid_array[process_index]);
+            printf("Stopped child process %d\n", pid_array[process_index]);
         }
 
         process_index++;
-        // back to beginning of array if end breached
         process_index %= num_processes;
 
-        // start next process
         if (process_exited[process_index] == 0) {
             kill(pid_array[process_index], SIGCONT);
-            printf("continued process %d\n", pid_array[process_index]);
+            printf("Continued next child process %d\n", pid_array[process_index]);
         }
 
-        // update exit status of each process
+        // update exit status of each process still in progress
         for (int i = 0; i < num_processes; i++) {
             if (process_exited[i] > 0)
                 continue;
             // get status and store it in array
+            // enabling all option flags results in immediate return
+            // no waiting takes place, just status report
             wpid = waitpid(pid_array[i], &status, WNOHANG | WUNTRACED | WCONTINUED);
+            if (wpid < 0) {
+                fprintf(stderr, "Error occurred while reporting status of child %d",
+                        pid_array[i]);
+                perror("");
+                exit(EXIT_FAILURE);
+            }
+            // WIFEXITED returns non-zero if child terminated normally
+            // (i.e., our exit(-1) call in main())
             process_exited[i] = WIFEXITED(status);
         }
 
