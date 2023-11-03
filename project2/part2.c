@@ -16,8 +16,12 @@
 #include "MCP.h"
 
 int main(int argc, char** argv) {
-    FILE* file_in;
-    usage(argc, argv, file_in);
+    usage(argc, argv);
+    FILE* file_in = fopen(argv[1], "r");
+    if (file_in == NULL) {
+        fprintf(stderr, "Error: could not open file %s\n", argv[1]);
+        exit(EXIT_FAILURE);
+    }
 
     command_line args;
     unsigned int num_lines = count_lines(file_in);
@@ -73,14 +77,9 @@ void signaler(pid_t* pid_array, int size, int signal) {
     }
 }
 
-void usage(int argc, char** argv, FILE* to_open) {
+void usage(int argc, char** argv) {
     if (argc != 2) {
         fprintf(stderr, "Usage: %s [input TXT file]\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    to_open = fopen(argv[1], "r");
-    if (to_open == NULL) {
-        fprintf(stderr, "Error: could not open file %s\n", argv[1]);
         exit(EXIT_FAILURE);
     }
 }
