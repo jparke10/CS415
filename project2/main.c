@@ -13,22 +13,16 @@
 #include <sys/wait.h>
 #include <string.h>
 #include <signal.h>
-#include <stdbool.h>
 #include "string_parser.h"
 
 #define _GNU_SOURCE
 #define BUF_SIZE 65536
 #define LINE_MAX 2048
 
-bool first_time = true;
-unsigned int num_lines = 0;
-unsigned int process_index = 0;
-pid_t* pid_array;
-
 // Count of lines in file needed for pid array allocation
 unsigned int count_lines(FILE* file);
 
-void schedule_next(int signum);
+void signaler(pid_t* pid_array, int size, int signal);
 
 int main(int argc, char** argv) {
     if (argc != 2) {
@@ -43,12 +37,18 @@ int main(int argc, char** argv) {
     }
 
     command_line args;
-    num_lines = count_lines(file_in);
+    unsigned int num_lines = count_lines(file_in);
     char* buf = malloc(LINE_MAX);
     size_t buf_size = LINE_MAX;
     // w in wpid stands for "wait"
     pid_t wpid;
-    pid_array = malloc(sizeof(pid_t) * num_lines);
+    pid_t* pid_array = malloc(sizeof(pid_t) * num_lines);
+    sigset_t sigset;
+    int sig;
+
+    sigemptyset(&sigset);
+    sigaddset(&sigset, SIGUSR1);
+    sigprocmask(SIG_BLOCK, &sigset, NULL);
 
     for (int i = 0; i < num_lines; i++) {
         // execute command vector parsing
@@ -60,7 +60,8 @@ int main(int argc, char** argv) {
             fprintf(stderr, "Error in forking parent process\n");
             exit(EXIT_FAILURE);
         } else if (pid_array[i] == 0) {
-            raise(SIGSTOP);
+            // initially wait for SIGUSR1 signal
+            sigwait(&sigset, &sig);
             if ((execvp(args.command_list[0], args.command_list)) == -1) {
                 perror("Error launching child process");
             }
@@ -69,9 +70,13 @@ int main(int argc, char** argv) {
         free_command_line(&args);
         memset(&args, 0, 0);
     }
-    signal(SIGALRM, schedule_next);
+
+    signaler(pid_array, num_lines, SIGUSR1);
+    signaler(pid_array, num_lines, SIGSTOP);
+    signaler(pid_array, num_lines, SIGCONT);
+
     // wait for all child processes to finish
-    while ((wpid = waitpid(-1, NULL, 0)) > 0);
+    while ((wpid = wait(NULL)) > 0);
     free(pid_array);
     free(buf);
     fclose(file_in);
@@ -98,13 +103,9 @@ unsigned int count_lines(FILE* file) {
     return ++count;
 }
 
-void schedule_next(int signum) {
-    if (first_time == true) {
-        first_time = false;
-        kill(pid_array[0], SIGCONT);
-    } else {
-        kill(pid_array[process_index], SIGSTOP);
-        process_index = (process_index + 1) % num_lines;
-        kill(pid_array[process_index], SIGCONT);
+void signaler(pid_t* pid_array, int size, int signal) {
+    sleep(3);
+    for (int i = 0; i < size; i++) {
+        kill(pid_array[i], signal);
     }
 }
