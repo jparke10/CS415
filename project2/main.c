@@ -8,33 +8,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <string.h>
 #include <signal.h>
-#include "string_parser.h"
-
-#define _GNU_SOURCE
-#define BUF_SIZE 65536
-#define LINE_MAX 2048
-
-// Count of lines in file needed for pid array allocation
-unsigned int count_lines(FILE* file);
-
-void signaler(pid_t* pid_array, int size, int signal);
+#include "MCP.h"
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s [input TXT file]\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-
-    FILE* file_in = fopen(argv[1], "r");
-    if (file_in == NULL) {
-        fprintf(stderr, "Error: could not open file %s\n", argv[1]);
-        exit(EXIT_FAILURE);
-    }
+    FILE* file_in;
+    usage(argc, argv, file_in);
 
     command_line args;
     unsigned int num_lines = count_lines(file_in);
@@ -83,6 +66,25 @@ int main(int argc, char** argv) {
     exit(EXIT_SUCCESS);
 }
 
+void signaler(pid_t* pid_array, int size, int signal) {
+    sleep(3);
+    for (int i = 0; i < size; i++) {
+        kill(pid_array[i], signal);
+    }
+}
+
+void usage(int argc, char** argv, FILE* to_open) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s [input TXT file]\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+    to_open = fopen(argv[1], "r");
+    if (to_open == NULL) {
+        fprintf(stderr, "Error: could not open file %s\n", argv[1]);
+        exit(EXIT_FAILURE);
+    }
+}
+
 unsigned int count_lines(FILE* file) {
     char buf[BUF_SIZE];
     unsigned int count = 0;
@@ -103,9 +105,56 @@ unsigned int count_lines(FILE* file) {
     return ++count;
 }
 
-void signaler(pid_t* pid_array, int size, int signal) {
-    sleep(3);
-    for (int i = 0; i < size; i++) {
-        kill(pid_array[i], signal);
-    }
+int count_token (char* buf, const char* delim) {
+	// check for NULL string
+	// returning count 1 will account for lone NULL token in command_list
+	if (buf == NULL) {
+		return 1;
+	}
+	// nondestructive by duplicating input string
+	char* str = strdup(buf);
+	char* token, *saveptr;
+	int num_token = 0;
+	token = strtok_r(str, delim, &saveptr);
+
+	while (token != NULL) {
+		// strings ending with delimiter will get an extra token containing '\n'
+		// accounted for by stripping '\n' in str_filler
+		num_token++;
+		token = strtok_r(NULL, delim, &saveptr);
+	}
+	free(str);
+	// account NULL for last token
+	return ++num_token;
+}
+
+command_line str_filler (char* buf, const char* delim) {
+	command_line to_fill;
+	char* str = strdup(buf);
+	char* end_str, *end_token;
+	int i = 0;
+
+	char* str_stripped = strtok_r(str, "\n", &end_str);
+	to_fill.num_token = count_token(str_stripped, delim);
+
+	to_fill.command_list = malloc(sizeof(char*) * to_fill.num_token);
+
+	char* token = strtok_r(str, delim, &end_token);
+	while (token != NULL) {
+		// length of token plus NULL character
+		to_fill.command_list[i] = malloc(strlen(token) + 1);
+		strcpy(to_fill.command_list[i], token);
+		token = strtok_r(NULL, delim, &end_token);
+		i++;
+	}
+	to_fill.command_list[to_fill.num_token - 1] = NULL;
+	
+	free(str);
+	return to_fill;
+}
+
+void free_command_line(command_line* command) {
+	for (int i = 0; i < command->num_token; i++)
+		free(command->command_list[i]);
+	free(command->command_list);
 }
