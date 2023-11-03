@@ -15,13 +15,13 @@
 #include <signal.h>
 #include "MCP.h"
 
-// alarm flag, says if new process should be started
-// this iteration of the scheduler
-static volatile sig_atomic_t start_next = 1;
-
 int main(int argc, char** argv) {
-    FILE* file_in;
-    usage(argc, argv, file_in);
+    usage(argc, argv);
+    FILE* file_in = fopen(argv[1], "r");
+    if (file_in == NULL) {
+        fprintf(stderr, "Error: could not open file %s\n", argv[1]);
+        exit(EXIT_FAILURE);
+    }
 
     command_line args;
     const unsigned int num_processes = count_lines(file_in);
@@ -51,16 +51,15 @@ int main(int argc, char** argv) {
         memset(&args, 0, 0);
     }
 
-    signal(SIGALRM, handle_alarm);
+    // SIGALRM default behavior is to terminate parent process
+    // hijack it for our own use
+    signal(SIGALRM, SIG_IGN);
     scheduler_loop(pid_array, num_processes);
+    signal(SIGALRM, SIG_DFL);
     free(pid_array);
     free(buf);
     fclose(file_in);
     exit(EXIT_SUCCESS);
-}
-
-void handle_alarm (int signum) {
-    start_next = 1;
 }
 
 void signaler(pid_t* pid_array, int size, int signal) {
@@ -70,14 +69,9 @@ void signaler(pid_t* pid_array, int size, int signal) {
     }
 }
 
-void usage(int argc, char** argv, FILE* to_open) {
+void usage(int argc, char** argv) {
     if (argc != 2) {
         fprintf(stderr, "Usage: %s [input TXT file]\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-    to_open = fopen(argv[1], "r");
-    if (to_open == NULL) {
-        fprintf(stderr, "Error: could not open file %s\n", argv[1]);
         exit(EXIT_FAILURE);
     }
 }
@@ -156,7 +150,7 @@ void free_command_line(command_line* command) {
 	free(command->command_list);
 }
 
-void scheduler_loop(pid_t* pid_array, const unsigned int size) {
+void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
     // first, a way to block scheduler while waiting for SIGALRM
     // ensures child process gets its fair time slice
     sigset_t sigset;
@@ -165,17 +159,18 @@ void scheduler_loop(pid_t* pid_array, const unsigned int size) {
     sigaddset(&sigset, SIGALRM);
     sigprocmask(SIG_BLOCK, &sigset, NULL);
 
-    int process_exited[size];
-    for (int i = 0; i < size; i++) {
+    pid_t wpid;
+
+    unsigned int processes_done = 0;
+    int process_exited[num_processes];
+    int status;
+    unsigned int process_index = 0;
+    for (int i = 0; i < num_processes; i++) {
         process_exited[i] = 0;
     }
 
-    unsigned int processes_finished = 0;
-    int status;
-    unsigned int process_index = 0;
-    pid_t wpid;
-
     // start first process, then enter loop
+    printf("starting child process %d\n", pid_array[0]);
     kill(pid_array[0], SIGCONT);
     while (1) {
         // if current process has not exited, schedule the next one
@@ -183,7 +178,41 @@ void scheduler_loop(pid_t* pid_array, const unsigned int size) {
         if (process_exited[process_index] == 0) {
             alarm(2);
             sigwait(&sigset, &sig);
+            // process gets its time slice, then stops
+            kill(pid_array[process_index], SIGSTOP);
+            printf("stopped process %d\n", pid_array[process_index]);
         }
 
+        process_index++;
+        // back to beginning of array if end breached
+        process_index %= num_processes;
+
+        // start next process
+        if (process_exited[process_index] == 0) {
+            kill(pid_array[process_index], SIGCONT);
+            printf("continued process %d\n", pid_array[process_index]);
+        }
+
+        // update exit status of each process
+        for (int i = 0; i < num_processes; i++) {
+            if (process_exited[i] > 0)
+                continue;
+            // get status and store it in array
+            wpid = waitpid(pid_array[i], &status, WNOHANG | WUNTRACED | WCONTINUED);
+            process_exited[i] = WIFEXITED(status);
+        }
+
+        // count number of processes completed
+        for (int i = 0; i < num_processes; i++) {
+            if (process_exited[i] > 0) {
+                processes_done++;
+            }
+        }
+        
+        // if all processes are done, break out
+        // otherwise, reset for future recount
+        if (processes_done == num_processes) {
+            break;
+        } else processes_done = 0;
     }
 }

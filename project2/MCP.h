@@ -12,8 +12,6 @@
  * 
  */
 
-#include <stdio.h> // for FILE type
-#include <sys/types.h> // for pid_t type
 #ifndef MCP_H_
 #define MCP_H_
 
@@ -50,7 +48,7 @@ void free_command_line(command_line* command);
 /* Useful function prototypes for MCP */
 
 // Check input 
-void usage(int argc, char** argv, FILE* to_open);
+void usage(int argc, char** argv);
 
 // Count the number of lines (processes to be run) in input.txt
 unsigned int count_lines(FILE* file);
