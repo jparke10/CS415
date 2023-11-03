@@ -73,6 +73,8 @@ int main(int argc, char** argv) {
 void signaler(pid_t* pid_array, int size, int signal) {
     sleep(3);
     for (int i = 0; i < size; i++) {
+        printf("Parent %d: Sending signal %s to child %d\n",
+               getpid(), strsignal(signal), pid_array[i]);
         kill(pid_array[i], signal);
     }
 }
