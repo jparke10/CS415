@@ -59,4 +59,8 @@ unsigned int count_lines(FILE* file);
 // for part 2 of MCP
 void signaler(pid_t* pid_array, int size, int signal);
 
+// Endless loop to check if it's time to start a new child process,
+// and if it is, do so
+void scheduler_loop(pid_t* pid_array, const unsigned int size);
+
 #endif
