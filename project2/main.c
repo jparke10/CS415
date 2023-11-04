@@ -180,8 +180,7 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
         if (process_exited[process_index] == 0) {
             alarm(2);
             if (sigwait(&sigset, &sig) > 0) {
-                fprintf(stderr, "Error occurred in wait for SIGALRM");
-                perror("");
+                perror("Error occurred in wait for SIGALRM");
                 exit(EXIT_FAILURE);
             }
             // process gets its time slice, then stops
