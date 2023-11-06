@@ -273,5 +273,6 @@ void print_status(const pid_t pid) {
             }
         }
     }
+    free(buf);
     fclose(process);
 }
