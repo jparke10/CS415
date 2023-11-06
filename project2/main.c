@@ -16,6 +16,28 @@
 #include <errno.h>
 #include "MCP.h"
 
+const char* process_prints[] = {
+    "Name:",
+    "State:",
+    "Pid:",
+    "FDSize:",
+    "VmPeak:",
+    "VmSize:",
+    "Threads:"
+};
+
+const int print_lengths[] = {
+    5,
+    6,
+    4,
+    7,
+    7,
+    7,
+    8
+};
+
+unsigned int num_prints = sizeof(process_prints) / sizeof(char*);
+
 int main(int argc, char** argv) {
     usage(argc, argv);
     FILE* file_in = fopen(argv[1], "r");
@@ -173,14 +195,16 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
 
     // start first process, then enter loop
     kill(pid_array[0], SIGCONT);
+    print_status(pid_array[0]);
     printf("Continued first child process %d\n", pid_array[0]);
     while (1) {
         // if current process has not exited, schedule the next one
         // wait until alarm handler has finished to continue scheduler
         if (process_exited[process_index] == 0) {
+            printf("Process %d getting its time slice...\n", pid_array[process_index]);
             alarm(2);
             if (sigwait(&sigset, &sig) > 0) {
-                perror("Error occurred in wait for SIGALRM");
+                perror("Error occurred in scheduler wait for SIGALRM");
                 exit(EXIT_FAILURE);
             }
             // process gets its time slice, then stops
@@ -194,6 +218,7 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
         if (process_exited[process_index] == 0) {
             kill(pid_array[process_index], SIGCONT);
             printf("Continued next child process %d\n", pid_array[process_index]);
+            print_status(pid_array[process_index]);
         }
 
         // update exit status of each process still in progress
@@ -211,7 +236,7 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
                 exit(EXIT_FAILURE);
             }
             // WIFEXITED returns non-zero if child terminated normally
-            // (i.e., our exit(-1) call in main())
+            // (i.e., our exit(EXIT_SUCCESS) call in main())
             process_exited[i] = WIFEXITED(status);
         }
 
@@ -228,4 +253,25 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
             break;
         } else processes_done = 0;
     }
+}
+
+void print_status(const pid_t pid) {
+    char path[LINE_MAX];
+    size_t buf_size = LINE_MAX;
+    char* buf = malloc(buf_size);
+    // construct path to process to read
+    snprintf(path, LINE_MAX, "/proc/%d/status", pid);
+    FILE* process = fopen(path, "r");
+    if (process == NULL) {
+        printf("Unable to read status of process %d\n", pid);
+        return;
+    }
+    while (getline(&buf, &buf_size, process) != EOF) {
+        for (int i = 0; i < num_prints; i++) {
+            if (strncmp(buf, process_prints[i], print_lengths[i]) == 0) {
+                printf("%s", buf);
+            }
+        }
+    }
+    fclose(process);
 }
