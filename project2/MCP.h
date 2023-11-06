@@ -61,4 +61,6 @@ void signaler(pid_t* pid_array, int size, int signal);
 // and if it is, do so
 void scheduler_loop(pid_t* pid_array, const unsigned int size);
 
+void print_status(const pid_t pid);
+
 #endif
