@@ -194,7 +194,10 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
     }
 
     // start first process, then enter loop
-    kill(pid_array[0], SIGCONT);
+    if (kill(pid_array[0], SIGCONT) < 0) {
+        perror("Error while continuing first child process");
+        exit(EXIT_FAILURE);
+    }
     print_status(pid_array[0]);
     printf("Continued first child process %d\n", pid_array[0]);
     while (1) {
