@@ -42,6 +42,7 @@ part4
 .vscode
 
 # Turned in assignments
+*.tar.gz
 *.tar
 *.zip
 *.png
