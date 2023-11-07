@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
 
         pid_array[i] = fork();
         if (pid_array[i] < 0) {
-            fprintf(stderr, "Error in forking parent process\n");
+            perror("Error while forking parent process");
             exit(EXIT_FAILURE);
         } else if (pid_array[i] == 0) {
             // when process is created, immediately pause
@@ -54,7 +54,10 @@ int main(int argc, char** argv) {
 
     // SIGALRM default behavior is to terminate parent process
     // hijack it for our own use
-    signal(SIGALRM, SIG_IGN);
+    if (signal(SIGALRM, SIG_IGN) == SIG_ERR) {
+        perror("Error while modifying alarm signal");
+        exit(EXIT_FAILURE);
+    }
     scheduler_loop(pid_array, num_processes);
     signal(SIGALRM, SIG_DFL);
     free(pid_array);
@@ -172,7 +175,10 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
     }
 
     // start first process, then enter loop
-    kill(pid_array[0], SIGCONT);
+    if (kill(pid_array[0], SIGCONT) < 0) {
+        perror("Error while continuing first child process");
+        exit(EXIT_FAILURE);
+    }
     printf("Continued first child process %d\n", pid_array[0]);
     while (1) {
         // if current process has not exited, schedule the next one
@@ -184,7 +190,12 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
                 exit(EXIT_FAILURE);
             }
             // process gets its time slice, then stops
-            kill(pid_array[process_index], SIGSTOP);
+            if (kill(pid_array[process_index], SIGSTOP) < 0) {
+                fprintf(stderr, "Error occurred while stopping process %d",
+                        pid_array[process_index]);
+                perror("");
+                exit(EXIT_FAILURE);
+            }
             printf("Stopped child process %d\n", pid_array[process_index]);
         }
 
@@ -192,7 +203,12 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
         process_index %= num_processes;
 
         if (process_exited[process_index] == 0) {
-            kill(pid_array[process_index], SIGCONT);
+            if (kill(pid_array[process_index], SIGCONT) < 0) {
+                fprintf(stderr, "Error occurred while continuing process %d",
+                        pid_array[process_index]);
+                perror("");
+                exit(EXIT_FAILURE);
+            }
             printf("Continued next child process %d\n", pid_array[process_index]);
         }
 

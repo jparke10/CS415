@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
 
         pid_array[i] = fork();
         if (pid_array[i] < 0) {
-            fprintf(stderr, "Error in forking parent process\n");
+            perror("Error while forking parent process");
             exit(EXIT_FAILURE);
         } else if (pid_array[i] == 0) {
             if ((execvp(args.command_list[0], args.command_list)) == -1) {

@@ -208,7 +208,12 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
                 exit(EXIT_FAILURE);
             }
             // process gets its time slice, then stops
-            kill(pid_array[process_index], SIGSTOP);
+            if (kill(pid_array[process_index], SIGSTOP) < 0) {
+                fprintf(stderr, "Error occurred while stopping process %d",
+                        pid_array[process_index]);
+                perror("");
+                exit(EXIT_FAILURE);
+            }
             printf("Stopped child process %d\n", pid_array[process_index]);
         }
 
@@ -216,7 +221,12 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
         process_index %= num_processes;
 
         if (process_exited[process_index] == 0) {
-            kill(pid_array[process_index], SIGCONT);
+            if (kill(pid_array[process_index], SIGCONT) < 0) {
+                fprintf(stderr, "Error occurred while continuing process %d",
+                        pid_array[process_index]);
+                perror("");
+                exit(EXIT_FAILURE);
+            }
             printf("Continued next child process %d\n", pid_array[process_index]);
             print_status(pid_array[process_index]);
         }
