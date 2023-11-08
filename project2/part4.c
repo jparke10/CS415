@@ -200,14 +200,6 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
     }
     print_status(pid_array[0]);
     printf("Continued first child process %d\n", pid_array[0]);
-    wpid = waitpid(pid_array[0], &status, WNOHANG | WUNTRACED | WCONTINUED);
-    if (wpid < 0) {
-        fprintf(stderr, "Error occurred while reporting status of child %d",
-                pid_array[0]);
-        perror("");
-        exit(EXIT_FAILURE);
-    }
-    process_exited[0] = WIFEXITED(status);
     while (1) {
         // if current process has not exited, schedule the next one
         // wait until alarm handler has finished to continue scheduler
