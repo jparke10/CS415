@@ -46,6 +46,8 @@ part4
 *.tar
 *.zip
 *.png
+*.docx
+*.pdf
 
 # Mac-specific files (created when writing reports)
 .DS_Store
