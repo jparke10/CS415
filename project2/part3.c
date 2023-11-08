@@ -220,12 +220,16 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
             // enabling all option flags results in immediate return
             // no waiting takes place, just status report
             wpid = waitpid(pid_array[i], &status, WNOHANG | WUNTRACED | WCONTINUED);
+            // error handling
+            // if process status is not available, wpid returns 0
+            // check on next scheduler loop
             if (wpid < 0) {
                 fprintf(stderr, "Error occurred while reporting status of child %d",
                         pid_array[i]);
                 perror("");
                 exit(EXIT_FAILURE);
-            }
+            } else if (wpid == 0)
+                continue;
             // WIFEXITED returns non-zero if child terminated normally
             // (i.e., our exit(-1) call in main())
             process_exited[i] = WIFEXITED(status);

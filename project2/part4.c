@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
             if ((execvp(args.command_list[0], args.command_list)) == -1) {
                 perror("Error launching child process");
             }
-            exit(EXIT_SUCCESS);
+            exit(-1);
         }
         free_command_line(&args);
         memset(&args, 0, 0);
@@ -200,6 +200,14 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
     }
     print_status(pid_array[0]);
     printf("Continued first child process %d\n", pid_array[0]);
+    wpid = waitpid(pid_array[0], &status, WNOHANG | WUNTRACED | WCONTINUED);
+    if (wpid < 0) {
+        fprintf(stderr, "Error occurred while reporting status of child %d",
+                pid_array[0]);
+        perror("");
+        exit(EXIT_FAILURE);
+    }
+    process_exited[0] = WIFEXITED(status);
     while (1) {
         // if current process has not exited, schedule the next one
         // wait until alarm handler has finished to continue scheduler
@@ -242,12 +250,16 @@ void scheduler_loop(pid_t* pid_array, const unsigned int num_processes) {
             // enabling all option flags results in immediate return
             // no waiting takes place, just status report
             wpid = waitpid(pid_array[i], &status, WNOHANG | WUNTRACED | WCONTINUED);
+            // error handling
+            // if process status is not available, wpid returns 0
+            // check on next scheduler loop
             if (wpid < 0) {
                 fprintf(stderr, "Error occurred while reporting status of child %d",
                         pid_array[i]);
                 perror("");
                 exit(EXIT_FAILURE);
-            }
+            } else if (wpid == 0)
+                continue;
             // WIFEXITED returns non-zero if child terminated normally
             // (i.e., our exit(EXIT_SUCCESS) call in main())
             process_exited[i] = WIFEXITED(status);
