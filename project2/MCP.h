@@ -61,6 +61,8 @@ void signaler(pid_t* pid_array, int size, int signal);
 // and if it is, do so
 void scheduler_loop(pid_t* pid_array, const unsigned int size);
 
+// Prints some information about the current status of the process
+// Info is read from /proc/[pid]/status file
 void print_status(const pid_t pid);
 
 #endif

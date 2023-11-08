@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
 
         pid_array[i] = fork();
         if (pid_array[i] < 0) {
-            fprintf(stderr, "Error in forking parent process\n");
+            perror("Error while forking parent process");
             exit(EXIT_FAILURE);
         } else if (pid_array[i] == 0) {
             // initially wait for SIGUSR1 signal
@@ -73,9 +73,14 @@ int main(int argc, char** argv) {
 void signaler(pid_t* pid_array, int size, int signal) {
     sleep(3);
     for (int i = 0; i < size; i++) {
+        if (kill(pid_array[i], signal) < 0) {
+            fprintf(stderr, "Error sending signal %s to process %d",
+                    strsignal(signal), pid_array[i]);
+            perror("");
+            exit(EXIT_FAILURE);
+        }
         printf("Parent %d: Sending signal %s to child %d\n",
                getpid(), strsignal(signal), pid_array[i]);
-        kill(pid_array[i], signal);
     }
 }
 
