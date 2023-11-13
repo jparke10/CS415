@@ -42,9 +42,12 @@ part4
 .vscode
 
 # Turned in assignments
+*.tar.gz
 *.tar
 *.zip
 *.png
+*.docx
+*.pdf
 
 # Mac-specific files (created when writing reports)
 .DS_Store
