@@ -47,3 +47,8 @@ cpubound
 
 # Mac-specific files (created when writing reports)
 .DS_Store
+
+# Project 3 output files
+
+output
+output.txt
