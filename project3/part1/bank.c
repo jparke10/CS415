@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
         getline(&buf, &buf_size, file_in);
         // account number line
         getline(&buf, &buf_size, file_in);
-        strncpy(account_array[i].account_number, buf, 16);
+        memcpy(account_array[i].account_number, buf, 16);
         snprintf(account_array[i].out_file, 63, "./output/%s.txt",
                  account_array[i].account_number);
         FILE* acc = fopen(account_array[i].out_file, "w");
@@ -114,8 +114,7 @@ int main(int argc, char** argv) {
         fclose(acc);
         // password line
         getline(&buf, &buf_size, file_in);
-        strncpy(account_array[i].password, buf, 8);
-        strncat(account_array[i].password, "\0", 1);
+        memcpy(account_array[i].password, buf, 8);
         // initial balance
         getline(&buf, &buf_size, file_in);
         account_array[i].balance = atof(buf);
