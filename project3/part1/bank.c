@@ -59,6 +59,7 @@ void* update_balance(void* arg) {
                                     account_array[i].reward_rate;
         FILE* acc = fopen(account_array[i].out_file, "a");
         fprintf(acc, "Current Balance:\t%.2f\n", account_array[i].balance);
+        fclose(acc);
     }
 }
 
@@ -144,6 +145,7 @@ int main(int argc, char** argv) {
     }
 
     fclose(transactions);
+    fclose(file_in);
     free(account_array);
     free(buf);
 }
