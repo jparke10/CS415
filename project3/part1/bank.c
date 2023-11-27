@@ -57,6 +57,7 @@ void* update_balance(void* arg) {
     for (int i = 0; i < num_accounts; i++) {
         account_array[i].balance += account_array[i].transaction_tracter *
                                     account_array[i].reward_rate;
+        account_array[i].transaction_tracter = 0.;
         FILE* acc = fopen(account_array[i].out_file, "a");
         fprintf(acc, "Current Balance:\t%.2f\n", account_array[i].balance);
         fclose(acc);
