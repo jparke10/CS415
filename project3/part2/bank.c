@@ -28,7 +28,7 @@ void* process_transaction(void* arg) {
         return NULL;
     }
 
-    if (strcmp(type, "T") == 0) {
+    if (*type == 'T') {
         int destination_index = -1;
         double amount = atof(input->command_list[4]);
         for (int i = 0; i < num_accounts; i++) {
@@ -44,14 +44,14 @@ void* process_transaction(void* arg) {
         account_array[destination_index].balance += amount;
         pthread_mutex_unlock(&account_array[account_index].ac_lock);
         pthread_mutex_unlock(&account_array[destination_index].ac_lock);
-    } else if (strcmp(type, "C") == 0) {
-    } else if (strcmp(type, "D") == 0) {
+    } else if (*type == 'C') {
+    } else if (*type == 'D') {
         double amount = atof(input->command_list[3]);
         pthread_mutex_lock(&(account_array[account_index].ac_lock));
         account_array[account_index].balance += amount;
         account_array[account_index].transaction_tracter += amount;
         pthread_mutex_unlock(&account_array[account_index].ac_lock);
-    } else if (strcmp(type, "W") == 0) {
+    } else if (*type == 'W') {
         double amount = atof(input->command_list[3]);
         pthread_mutex_lock(&(account_array[account_index].ac_lock));
         account_array[account_index].balance -= amount;

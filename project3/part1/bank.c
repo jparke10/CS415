@@ -28,7 +28,7 @@ void* process_transaction(void* arg) {
         return NULL;
     }
 
-    if (strcmp(type, "T") == 0) {
+    if (*type == 'T') {
         int destination_index = -1;
         double amount = atof(input->command_list[4]);
         for (int i = 0; i < num_accounts; i++) {
@@ -40,12 +40,12 @@ void* process_transaction(void* arg) {
         account_array[account_index].balance -= amount;
         account_array[account_index].transaction_tracter += amount;
         account_array[destination_index].balance += amount;
-    } else if (strcmp(type, "C") == 0) {
-    } else if (strcmp(type, "D") == 0) {
+    } else if (*type == 'C') {
+    } else if (*type == 'D') {
         double amount = atof(input->command_list[3]);
         account_array[account_index].balance += amount;
         account_array[account_index].transaction_tracter += amount;
-    } else if (strcmp(type, "W") == 0) {
+    } else if (*type == 'W') {
         double amount = atof(input->command_list[3]);
         account_array[account_index].balance -= amount;
         account_array[account_index].transaction_tracter += amount;
