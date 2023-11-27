@@ -33,10 +33,6 @@
 pseudo-shell
 iobound
 cpubound
-part1
-part2
-part3
-part4
 
 # Visual Studio Code supporting files
 .vscode
