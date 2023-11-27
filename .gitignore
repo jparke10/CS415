@@ -52,3 +52,7 @@ cpubound
 
 output
 output.txt
+log1.txt
+log2.txt
+log3.txt
+log4.txt
