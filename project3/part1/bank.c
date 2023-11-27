@@ -144,5 +144,6 @@ int main(int argc, char** argv) {
     }
 
     fclose(transactions);
+    free(account_array);
     free(buf);
 }
