@@ -33,6 +33,7 @@
 pseudo-shell
 iobound
 cpubound
+bank
 
 # Visual Studio Code supporting files
 .vscode
