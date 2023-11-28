@@ -8,8 +8,12 @@
 #include "account.h"
 #include "string_parser.h"
 
+#define NUM_THREADS 10
+
 unsigned int num_accounts = 0;
 account* account_array = NULL;
+pthread_t workers[NUM_THREADS];
+pthread_t bank_thread;
 
 void* process_transaction(void* arg) {
     command_line* input = (command_line*)arg;
@@ -63,13 +67,16 @@ void* process_transaction(void* arg) {
 
 void* update_balance(void* arg) {
     for (int i = 0; i < num_accounts; i++) {
+        pthread_mutex_lock(&(account_array[i].ac_lock));
         account_array[i].balance += account_array[i].transaction_tracter *
                                     account_array[i].reward_rate;
         account_array[i].transaction_tracter = 0.;
+        pthread_mutex_unlock(&(account_array[i].ac_lock));
         FILE* acc = fopen(account_array[i].out_file, "a");
         fprintf(acc, "Current Balance:\t%.2f\n", account_array[i].balance);
         fclose(acc);
     }
+    pthread_exit(0);
 }
 
 void usage(int argc, char** argv) {
@@ -144,7 +151,8 @@ int main(int argc, char** argv) {
     printf("done\n");
 
     printf("Updating balances with reward rate...");
-    update_balance(NULL);
+    pthread_create(&bank_thread, NULL, update_balance, NULL);
+    pthread_join(bank_thread, 0);
     printf("done\n");
 
     FILE* transactions = fopen("output.txt", "w");
