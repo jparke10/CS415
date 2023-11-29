@@ -5,12 +5,15 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include "account.h"
 #include "string_parser.h"
 
 #define NUM_THREADS 10
+#define REQUEST_THRESHOLD 5000
 #define CHUNK_SIZE(X) X / NUM_THREADS
 
+// Struct for each file chunk
 typedef struct {
     FILE* file_in;
     unsigned int chunk_lines;
@@ -25,20 +28,20 @@ unsigned int num_accounts = 0;
 
 void* process_transaction(void* arg) {
     file_chunk* chunk = (file_chunk*)arg;
-    unsigned int line_counter = 0;
+    command_line current_line;
     chunk->file_in = fopen(file_reading, "r");
     fseek(chunk->file_in, chunk->chunk_offset, SEEK_SET);
 
-    while (line_counter < chunk->chunk_lines) {
+    for (unsigned int i = 0; i < chunk->chunk_lines; i++) {
         // get line and parse it
         ssize_t read = getline(&(chunk->local_buf), &buf_size, chunk->file_in);
         if (read == EOF) {
-            pthread_exit(0);
+            break;
         }
-        command_line input = str_filler(chunk->local_buf, " ");
-        char* type = input.command_list[0];
-        char* account = input.command_list[1];
-        char* password = input.command_list[2];
+        current_line = str_filler(chunk->local_buf, " ");
+        char* type = current_line.command_list[0];
+        char* account = current_line.command_list[1];
+        char* password = current_line.command_list[2];
 
         int account_index = -1;
         for (int i = 0; i < num_accounts; i++) {
@@ -48,44 +51,49 @@ void* process_transaction(void* arg) {
             }
         }
         // password validation
+        // if password is invalid, free command line and parse next line
         if (strcmp(password, account_array[account_index].password) != 0) {
-            return NULL;
+            free_command_line(&current_line);
+            memset(&current_line, 0, 0);
+            continue;
         }
-
         if (*type == 'T') {
             int destination_index = -1;
-            double amount = atof(input.command_list[4]);
+            double amount = atof(current_line.command_list[4]);
             for (int i = 0; i < num_accounts; i++) {
-                if (strcmp(input.command_list[3], account_array[i].account_number) == 0) {
+                if (strcmp(current_line.command_list[3], account_array[i].account_number) == 0) {
                     destination_index = i;
                     break;
                 }
             }
             pthread_mutex_lock(&(account_array[account_index].ac_lock));
-            pthread_mutex_lock(&(account_array[destination_index].ac_lock));
             account_array[account_index].balance -= amount;
             account_array[account_index].transaction_tracter += amount;
-            account_array[destination_index].balance += amount;
             pthread_mutex_unlock(&account_array[account_index].ac_lock);
+            pthread_mutex_lock(&(account_array[destination_index].ac_lock));
+            account_array[destination_index].balance += amount;
             pthread_mutex_unlock(&account_array[destination_index].ac_lock);
         } else if (*type == 'C') {
+            free_command_line(&current_line);
+            memset(&current_line, 0, 0);
+            continue;
         } else if (*type == 'D') {
-            double amount = atof(input.command_list[3]);
+            double amount = atof(current_line.command_list[3]);
             pthread_mutex_lock(&(account_array[account_index].ac_lock));
             account_array[account_index].balance += amount;
             account_array[account_index].transaction_tracter += amount;
             pthread_mutex_unlock(&account_array[account_index].ac_lock);
         } else if (*type == 'W') {
-            double amount = atof(input.command_list[3]);
+            double amount = atof(current_line.command_list[3]);
             pthread_mutex_lock(&(account_array[account_index].ac_lock));
             account_array[account_index].balance -= amount;
             account_array[account_index].transaction_tracter += amount;
             pthread_mutex_unlock(&account_array[account_index].ac_lock);
         }
-        free_command_line(&input);
-        memset(&input, 0, 0);
-        line_counter++;
+        free_command_line(&(current_line));
+        memset(&(current_line), 0, 0);
     }
+    fclose(chunk->file_in);
     pthread_exit(0);
 }
 
@@ -197,7 +205,6 @@ int main(int argc, char** argv) {
         file[i].file_in = fopen(argv[1], "r");
         fseek(file[i].file_in, transactions_start, SEEK_SET);
         file[i].chunk_offset = 0;
-        file[i].chunk_lines = 0;
         file[i].chunk_lines = CHUNK_SIZE(transactions);
         file[i].local_buf = malloc(LINE_MAX);
         memset(file[i].local_buf, 0, LINE_MAX);
@@ -240,6 +247,12 @@ int main(int argc, char** argv) {
     for (int i = 0; i < num_accounts; i++) {
         fprintf(total_transactions, "%d balance:\t%.2f\n\n", i, account_array[i].balance);
     }
+
+    // free file chunk structs
+    for (int i = 0; i < NUM_THREADS; i++) {
+        free(file[i].local_buf);
+    }
+    free(file);
 
     fclose(total_transactions);
     fclose(file_in);
