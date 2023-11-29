@@ -14,65 +14,82 @@
 typedef struct {
     FILE* file_in;
     unsigned int chunk_lines;
-    int line_counter;
-    command_line line;
+    char* local_buf;
+    long chunk_offset;
 } file_chunk;
 
+size_t buf_size = LINE_MAX;
+pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
 account* account_array = NULL;
+char* file_reading = NULL;
 unsigned int num_accounts = 0;
 
 void* process_transaction(void* arg) {
     file_chunk* chunk = (file_chunk*)arg;
+    unsigned int line_counter = 0;
+    chunk->file_in = fopen(file_reading, "r");
+    fseek(chunk->file_in, chunk->chunk_offset, SEEK_SET);
 
-    command_line* input = &(chunk->line);
-    char* type = input->command_list[0];
-    char* account = input->command_list[1];
-    char* password = input->command_list[2];
-
-
-    int account_index = -1;
-    for (int i = 0; i < num_accounts; i++) {
-        if (strcmp(account, account_array[i].account_number) == 0) {
-            account_index = i;
-            break;
+    while (line_counter < chunk->chunk_lines) {
+        // get line and parse it
+        pthread_mutex_lock(&file_mutex);
+        ssize_t read = getline(&(chunk->local_buf), &buf_size, chunk->file_in);
+        pthread_mutex_unlock(&file_mutex);
+        if (read == EOF) {
+            pthread_exit(0);
         }
-    }
-    // password validation
-    if (strcmp(password, account_array[account_index].password) != 0) {
-        return NULL;
-    }
+        command_line input = str_filler(chunk->local_buf, " ");
+        char* type = input.command_list[0];
+        char* account = input.command_list[1];
+        char* password = input.command_list[2];
 
-    if (*type == 'T') {
-        int destination_index = -1;
-        double amount = atof(input->command_list[4]);
+        int account_index = -1;
         for (int i = 0; i < num_accounts; i++) {
-            if (strcmp(input->command_list[3], account_array[i].account_number) == 0) {
-                destination_index = i;
+            if (strcmp(account, account_array[i].account_number) == 0) {
+                account_index = i;
                 break;
             }
         }
-        pthread_mutex_lock(&(account_array[account_index].ac_lock));
-        pthread_mutex_lock(&(account_array[destination_index].ac_lock));
-        account_array[account_index].balance -= amount;
-        account_array[account_index].transaction_tracter += amount;
-        account_array[destination_index].balance += amount;
-        pthread_mutex_unlock(&account_array[account_index].ac_lock);
-        pthread_mutex_unlock(&account_array[destination_index].ac_lock);
-    } else if (*type == 'C') {
-    } else if (*type == 'D') {
-        double amount = atof(input->command_list[3]);
-        pthread_mutex_lock(&(account_array[account_index].ac_lock));
-        account_array[account_index].balance += amount;
-        account_array[account_index].transaction_tracter += amount;
-        pthread_mutex_unlock(&account_array[account_index].ac_lock);
-    } else if (*type == 'W') {
-        double amount = atof(input->command_list[3]);
-        pthread_mutex_lock(&(account_array[account_index].ac_lock));
-        account_array[account_index].balance -= amount;
-        account_array[account_index].transaction_tracter += amount;
-        pthread_mutex_unlock(&account_array[account_index].ac_lock);
+        // password validation
+        if (strcmp(password, account_array[account_index].password) != 0) {
+            return NULL;
+        }
+
+        if (*type == 'T') {
+            int destination_index = -1;
+            double amount = atof(input.command_list[4]);
+            for (int i = 0; i < num_accounts; i++) {
+                if (strcmp(input.command_list[3], account_array[i].account_number) == 0) {
+                    destination_index = i;
+                    break;
+                }
+            }
+            pthread_mutex_lock(&(account_array[account_index].ac_lock));
+            pthread_mutex_lock(&(account_array[destination_index].ac_lock));
+            account_array[account_index].balance -= amount;
+            account_array[account_index].transaction_tracter += amount;
+            account_array[destination_index].balance += amount;
+            pthread_mutex_unlock(&account_array[account_index].ac_lock);
+            pthread_mutex_unlock(&account_array[destination_index].ac_lock);
+        } else if (*type == 'C') {
+        } else if (*type == 'D') {
+            double amount = atof(input.command_list[3]);
+            pthread_mutex_lock(&(account_array[account_index].ac_lock));
+            account_array[account_index].balance += amount;
+            account_array[account_index].transaction_tracter += amount;
+            pthread_mutex_unlock(&account_array[account_index].ac_lock);
+        } else if (*type == 'W') {
+            double amount = atof(input.command_list[3]);
+            pthread_mutex_lock(&(account_array[account_index].ac_lock));
+            account_array[account_index].balance -= amount;
+            account_array[account_index].transaction_tracter += amount;
+            pthread_mutex_unlock(&account_array[account_index].ac_lock);
+        }
+        free_command_line(&input);
+        memset(&input, 0, 0);
+        line_counter++;
     }
-    return NULL;
+    pthread_exit(0);
 }
 
 void* update_balance(void* arg) {
@@ -125,8 +142,8 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Error: could not open file %s\n", argv[1]);
         exit(EXIT_FAILURE);
     }
+    file_reading = argv[1];
 
-    size_t buf_size = LINE_MAX;
     char* buf = (char*)malloc(buf_size);
 
     getline(&buf, &buf_size, file_in);
@@ -182,8 +199,11 @@ int main(int argc, char** argv) {
     for (int i = 0; i < NUM_THREADS; i++) {
         file[i].file_in = fopen(argv[1], "r");
         fseek(file[i].file_in, transactions_start, SEEK_SET);
-        file[i].line_counter = 0;
+        file[i].chunk_offset = 0;
+        file[i].chunk_lines = 0;
         file[i].chunk_lines = CHUNK_SIZE(transactions);
+        file[i].local_buf = malloc(LINE_MAX);
+        memset(file[i].local_buf, 0, LINE_MAX);
         if (extras > 0) {
             file[i].chunk_lines += 1;
             extras -= 1;
@@ -198,21 +218,19 @@ int main(int argc, char** argv) {
         for (size_t j = 0; j < lines_offset; j++) {
             getline(&buf, &buf_size, file[i].file_in);
         }
+        file[i].chunk_offset = ftell(file[i].file_in);
+        fclose(file[i].file_in);
     }
     printf("done\n");
 
     pthread_t workers[NUM_THREADS];
     pthread_t bank_thread;
-    // command_line transaction;
     printf("Processing transactions from %s...", argv[1]);
-    // while (getline(&buf, &buf_size, file_in) != EOF) {
-    //     transaction = str_filler(buf, " ");
-    //     process_transaction(&transaction);
-    //     free_command_line(&transaction);
-    //     memset(&transaction, 0, 0);
-    // }
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_create(&(workers[i]), NULL, process_transaction, &(file[i]));
+    }
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pthread_join(workers[i], 0);
     }
     printf("done\n");
 
@@ -221,12 +239,12 @@ int main(int argc, char** argv) {
     pthread_join(bank_thread, 0);
     printf("done\n");
 
-    FILE* transactions = fopen("output.txt", "w");
+    FILE* total_transactions = fopen("output.txt", "w");
     for (int i = 0; i < num_accounts; i++) {
-        fprintf(transactions, "%d balance:\t%.2f\n\n", i, account_array[i].balance);
+        fprintf(total_transactions, "%d balance:\t%.2f\n\n", i, account_array[i].balance);
     }
 
-    fclose(transactions);
+    fclose(total_transactions);
     fclose(file_in);
     free(account_array);
     free(buf);
