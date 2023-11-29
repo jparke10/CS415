@@ -9,17 +9,27 @@
 #include "string_parser.h"
 
 #define NUM_THREADS 10
+#define CHUNK_SIZE(X) X / NUM_THREADS
 
-unsigned int num_accounts = 0;
+typedef struct {
+    FILE* file_in;
+    unsigned int chunk_lines;
+    int line_counter;
+    command_line line;
+} file_chunk;
+
 account* account_array = NULL;
-pthread_t workers[NUM_THREADS];
-pthread_t bank_thread;
+unsigned int num_accounts = 0;
 
 void* process_transaction(void* arg) {
-    command_line* input = (command_line*)arg;
+    file_chunk* chunk = (file_chunk*)arg;
+
+    command_line* input = &(chunk->line);
     char* type = input->command_list[0];
     char* account = input->command_list[1];
     char* password = input->command_list[2];
+
+
     int account_index = -1;
     for (int i = 0; i < num_accounts; i++) {
         if (strcmp(account, account_array[i].account_number) == 0) {
@@ -86,6 +96,28 @@ void usage(int argc, char** argv) {
     }
 }
 
+unsigned int count_lines(FILE* file) {
+    long start_index = ftell(file);
+    char buf[65536];
+    unsigned int count = 0;
+    while (1) {
+        size_t read = fread(buf, sizeof(char), 65536, file);
+        if (ferror(file)) {
+            fprintf(stderr, "Error getting number of lines in file\n");
+            exit(EXIT_FAILURE);
+        }
+        for (int i = 0; i < read; i++) {
+            if (buf[i] == '\n')
+                count++;
+        }
+        if(feof(file))
+            break;
+    }
+    // return cursor to original position
+    fseek(file, start_index, SEEK_SET);
+    return ++count;
+}
+
 int main(int argc, char** argv) {
     usage(argc, argv);
     FILE* file_in = fopen(argv[1], "r");
@@ -140,13 +172,47 @@ int main(int argc, char** argv) {
     }
     printf("done\n");
 
-    command_line transaction;
+    printf("Chunking file %s for processing...", argv[1]);
+    file_chunk* file = malloc(sizeof(file_chunk) * NUM_THREADS);
+    // count number of transactions to process
+    unsigned int transactions = count_lines(file_in);
+    unsigned short extras = transactions % NUM_THREADS;
+    long transactions_start = ftell(file_in);
+    // populate file input struct
+    for (int i = 0; i < NUM_THREADS; i++) {
+        file[i].file_in = fopen(argv[1], "r");
+        fseek(file[i].file_in, transactions_start, SEEK_SET);
+        file[i].line_counter = 0;
+        file[i].chunk_lines = CHUNK_SIZE(transactions);
+        if (extras > 0) {
+            file[i].chunk_lines += 1;
+            extras -= 1;
+        }
+
+        size_t lines_offset = 0;
+        for (int j = 0; j < i; j++) {
+            lines_offset += file[j].chunk_lines;
+        }
+        // seek file pointer to line offset of chunk
+        // probably slower than single threaded solution...
+        for (size_t j = 0; j < lines_offset; j++) {
+            getline(&buf, &buf_size, file[i].file_in);
+        }
+    }
+    printf("done\n");
+
+    pthread_t workers[NUM_THREADS];
+    pthread_t bank_thread;
+    // command_line transaction;
     printf("Processing transactions from %s...", argv[1]);
-    while (getline(&buf, &buf_size, file_in) != EOF) {
-        transaction = str_filler(buf, " ");
-        process_transaction(&transaction);
-        free_command_line(&transaction);
-        memset(&transaction, 0, 0);
+    // while (getline(&buf, &buf_size, file_in) != EOF) {
+    //     transaction = str_filler(buf, " ");
+    //     process_transaction(&transaction);
+    //     free_command_line(&transaction);
+    //     memset(&transaction, 0, 0);
+    // }
+    for (int i = 0; i < NUM_THREADS; i++) {
+        pthread_create(&(workers[i]), NULL, process_transaction, &(file[i]));
     }
     printf("done\n");
 
