@@ -19,7 +19,6 @@ typedef struct {
 } file_chunk;
 
 size_t buf_size = LINE_MAX;
-pthread_mutex_t file_mutex = PTHREAD_MUTEX_INITIALIZER;
 account* account_array = NULL;
 char* file_reading = NULL;
 unsigned int num_accounts = 0;
@@ -32,9 +31,7 @@ void* process_transaction(void* arg) {
 
     while (line_counter < chunk->chunk_lines) {
         // get line and parse it
-        pthread_mutex_lock(&file_mutex);
         ssize_t read = getline(&(chunk->local_buf), &buf_size, chunk->file_in);
-        pthread_mutex_unlock(&file_mutex);
         if (read == EOF) {
             pthread_exit(0);
         }
