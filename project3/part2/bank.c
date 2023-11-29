@@ -5,7 +5,6 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include "account.h"
 #include "string_parser.h"
 
