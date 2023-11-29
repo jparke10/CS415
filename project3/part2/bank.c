@@ -21,11 +21,12 @@ typedef struct {
     unsigned int lines_offset;
 } file_chunk;
 
-// global file_reading is equivalent to argv[1]
 size_t buf_size = LINE_MAX;
 account* account_array = NULL;
+// global file_reading is equivalent to argv[1]
 char* file_reading = NULL;
 unsigned int num_accounts = 0;
+// file pointer position immediately after account block
 long transactions_start = 0;
 
 void* process_transaction(void* arg) {
