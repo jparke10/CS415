@@ -10,10 +10,11 @@
 #include "string_parser.h"
 
 #define NUM_THREADS 10
-#define REQUEST_THRESHOLD 5000
 #define CHUNK_SIZE(X) X / NUM_THREADS
 
 // Struct for each file chunk
+// Contains starting location of the chunk and its own file stream
+// Allows starting file read at the chunk's starting location
 typedef struct {
     FILE* file_in;
     unsigned int chunk_lines;
@@ -21,6 +22,7 @@ typedef struct {
     long chunk_offset;
 } file_chunk;
 
+// global file_reading is equivalent to argv[1]
 size_t buf_size = LINE_MAX;
 account* account_array = NULL;
 char* file_reading = NULL;
@@ -50,6 +52,7 @@ void* process_transaction(void* arg) {
                 break;
             }
         }
+
         // password validation
         // if password is invalid, free command line and parse next line
         if (strcmp(password, account_array[account_index].password) != 0) {
@@ -57,6 +60,7 @@ void* process_transaction(void* arg) {
             memset(&current_line, 0, 0);
             continue;
         }
+
         if (*type == 'T') {
             int destination_index = -1;
             double amount = atof(current_line.command_list[4]);
@@ -73,6 +77,8 @@ void* process_transaction(void* arg) {
             pthread_mutex_lock(&(account_array[destination_index].ac_lock));
             account_array[destination_index].balance += amount;
             pthread_mutex_unlock(&account_array[destination_index].ac_lock);
+        // check balance does nothing
+        // do not increment requests, just parse next line
         } else if (*type == 'C') {
             free_command_line(&current_line);
             memset(&current_line, 0, 0);
@@ -99,14 +105,18 @@ void* process_transaction(void* arg) {
 
 void* update_balance(void* arg) {
     for (int i = 0; i < num_accounts; i++) {
+        // we'll need to release the account lock from worker in part3 somehow
+        // maybe if condition wait is before the locks in process it'll be OK
         pthread_mutex_lock(&(account_array[i].ac_lock));
         account_array[i].balance += account_array[i].transaction_tracter *
                                     account_array[i].reward_rate;
+        // reset transaction tracker to prevent compounding interest
         account_array[i].transaction_tracter = 0.;
-        pthread_mutex_unlock(&(account_array[i].ac_lock));
+        // append is in critical section as well
         FILE* acc = fopen(account_array[i].out_file, "a");
         fprintf(acc, "Current Balance:\t%.2f\n", account_array[i].balance);
         fclose(acc);
+        pthread_mutex_unlock(&(account_array[i].ac_lock));
     }
     pthread_exit(0);
 }
@@ -118,6 +128,8 @@ void usage(int argc, char** argv) {
     }
 }
 
+// used to count total number of transactions in file
+// for chunking process
 unsigned int count_lines(FILE* file) {
     long start_index = ftell(file);
     char buf[65536];
@@ -149,6 +161,7 @@ int main(int argc, char** argv) {
     }
     file_reading = argv[1];
 
+    // parent thread buffer for getlines on struct(s) populating
     char* buf = (char*)malloc(buf_size);
 
     getline(&buf, &buf_size, file_in);
@@ -213,6 +226,9 @@ int main(int argc, char** argv) {
             extras -= 1;
         }
 
+        // summation of all previous offsets
+        // chunk 0 starts at transaction 1,
+        // chunk 1 12001, chunk 2 24001, etc
         size_t lines_offset = 0;
         for (int j = 0; j < i; j++) {
             lines_offset += file[j].chunk_lines;
@@ -222,6 +238,7 @@ int main(int argc, char** argv) {
         for (size_t j = 0; j < lines_offset; j++) {
             getline(&buf, &buf_size, file[i].file_in);
         }
+        // get location of cursor for later opening by worker thread
         file[i].chunk_offset = ftell(file[i].file_in);
         fclose(file[i].file_in);
     }
@@ -233,6 +250,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_create(&(workers[i]), NULL, process_transaction, &(file[i]));
     }
+    // wait for all workers to finish
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_join(workers[i], 0);
     }
@@ -247,14 +265,14 @@ int main(int argc, char** argv) {
     for (int i = 0; i < num_accounts; i++) {
         fprintf(total_transactions, "%d balance:\t%.2f\n\n", i, account_array[i].balance);
     }
+    fclose(total_transactions);
 
-    // free file chunk structs
+    // free allocated chunk members
     for (int i = 0; i < NUM_THREADS; i++) {
         free(file[i].local_buf);
     }
     free(file);
 
-    fclose(total_transactions);
     fclose(file_in);
     free(account_array);
     free(buf);
