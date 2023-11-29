@@ -36,7 +36,6 @@ void* process_transaction(void* arg) {
     for (unsigned int i = 0; i < chunk->lines_offset; i++)
         getline(&(chunk->local_buf), &buf_size, chunk->file_in);
     
-    printf("Thread line offset: %d\n", chunk->lines_offset);
     for (unsigned int i = 0; i < chunk->chunk_lines; i++) {
         // get line and parse it
         ssize_t read = getline(&(chunk->local_buf), &buf_size, chunk->file_in);
