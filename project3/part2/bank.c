@@ -18,7 +18,7 @@ typedef struct {
     FILE* file_in;
     unsigned int chunk_lines;
     char* local_buf;
-    long chunk_offset;
+    unsigned int lines_offset;
 } file_chunk;
 
 // global file_reading is equivalent to argv[1]
@@ -26,13 +26,17 @@ size_t buf_size = LINE_MAX;
 account* account_array = NULL;
 char* file_reading = NULL;
 unsigned int num_accounts = 0;
+long transactions_start = 0;
 
 void* process_transaction(void* arg) {
     file_chunk* chunk = (file_chunk*)arg;
     command_line current_line;
     chunk->file_in = fopen(file_reading, "r");
-    fseek(chunk->file_in, chunk->chunk_offset, SEEK_SET);
-
+    fseek(chunk->file_in, transactions_start, SEEK_SET);
+    for (unsigned int i = 0; i < chunk->lines_offset; i++)
+        getline(&(chunk->local_buf), &buf_size, chunk->file_in);
+    
+    printf("Thread line offset: %d\n", chunk->lines_offset);
     for (unsigned int i = 0; i < chunk->chunk_lines; i++) {
         // get line and parse it
         ssize_t read = getline(&(chunk->local_buf), &buf_size, chunk->file_in);
@@ -211,12 +215,9 @@ int main(int argc, char** argv) {
     // count number of transactions to process
     unsigned int transactions = count_lines(file_in);
     unsigned short extras = transactions % NUM_THREADS;
-    long transactions_start = ftell(file_in);
+    transactions_start = ftell(file_in);
     // populate file input struct
     for (int i = 0; i < NUM_THREADS; i++) {
-        file[i].file_in = fopen(argv[1], "r");
-        fseek(file[i].file_in, transactions_start, SEEK_SET);
-        file[i].chunk_offset = 0;
         file[i].chunk_lines = CHUNK_SIZE(transactions);
         file[i].local_buf = malloc(LINE_MAX);
         memset(file[i].local_buf, 0, LINE_MAX);
@@ -228,18 +229,8 @@ int main(int argc, char** argv) {
         // summation of all previous offsets
         // chunk 0 starts at transaction 1,
         // chunk 1 12001, chunk 2 24001, etc
-        size_t lines_offset = 0;
-        for (int j = 0; j < i; j++) {
-            lines_offset += file[j].chunk_lines;
-        }
-        // seek file pointer to line offset of chunk
-        // probably slower than single threaded solution...
-        for (size_t j = 0; j < lines_offset; j++) {
-            getline(&buf, &buf_size, file[i].file_in);
-        }
-        // get location of cursor for later opening by worker thread
-        file[i].chunk_offset = ftell(file[i].file_in);
-        fclose(file[i].file_in);
+        for (int j = 0; j < i; j++)
+            file[i].lines_offset += file[j].chunk_lines;
     }
     printf("done\n");
 
