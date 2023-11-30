@@ -219,6 +219,7 @@ int main(int argc, char** argv) {
     // populate file input struct
     for (int i = 0; i < NUM_THREADS; i++) {
         file[i].chunk_lines = CHUNK_SIZE(transactions);
+        file[i].lines_offset = 0;
         file[i].local_buf = malloc(LINE_MAX);
         memset(file[i].local_buf, 0, LINE_MAX);
         if (extras > 0) {
