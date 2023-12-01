@@ -137,7 +137,6 @@ void* process_transaction(void* arg) {
     pthread_mutex_lock(&end_mutex);
     workers_finished++;
     pthread_mutex_unlock(&end_mutex);
-    pthread_cond_signal(&updating_balance);
     fclose(chunk->file_in);
     pthread_exit(0);
 }
@@ -156,15 +155,17 @@ void* update_balance(void* arg) {
         // printf("workers finished: %d\n", workers_finished);
         pthread_mutex_lock(&request_mutex);
         printf("bank %d waiting now, update occurrence %d\n", syscall(SYS_gettid), num_updates);
-        while (transactions_processed < REQUEST_THRESHOLD && workers_finished != NUM_THREADS) {
+        while (transactions_processed < REQUEST_THRESHOLD && !final_update) {
             pthread_cond_wait(&updating_balance, &request_mutex);
         }
         // safety check for if bank thread got stuck waiting for end condition
         // (only happens if final update queues for end_mutex before final worker thread
         // increments workers_finished to NUM_THREADS)
         // parent thread sends an extra signal after all worker threads die
-        if (workers_finished == NUM_THREADS) {
-            final_update++;
+        if (final_update) {
+            printf("determined no update was needed - bank exiting\n");
+            pthread_mutex_unlock(&request_mutex);
+            pthread_exit(0);
         }
         for (int i = 0; i < num_accounts; i++) {
             pthread_mutex_lock(&(account_array[i].ac_lock));
@@ -178,9 +179,7 @@ void* update_balance(void* arg) {
             fclose(acc);
             pthread_mutex_unlock(&(account_array[i].ac_lock));
         }
-        if (!final_update) {
-            transactions_processed -= REQUEST_THRESHOLD;
-        }
+        transactions_processed -= REQUEST_THRESHOLD;
         num_updates++;
         pthread_cond_broadcast(&balance_updated);
         pthread_mutex_unlock(&request_mutex);
@@ -313,7 +312,13 @@ int main(int argc, char** argv) {
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_join(workers[i], NULL);
     }
+    final_update++;
+    pthread_mutex_lock(&request_mutex);
+    pthread_cond_signal(&updating_balance);
+    pthread_mutex_unlock(&request_mutex);
     pthread_join(bank_thread, NULL);
+    printf("total updates: %d\n", num_updates);
+
     pthread_barrier_destroy(&sync_workers);
     printf("done\n");
 
