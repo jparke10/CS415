@@ -5,10 +5,13 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 #include "account.h"
 #include "string_parser.h"
 
 #define NUM_THREADS 10
+#define REQUEST_THRESHOLD 5000
 #define CHUNK_SIZE(X) X / NUM_THREADS
 
 // Struct for each file chunk
@@ -22,11 +25,19 @@ typedef struct {
 } file_chunk;
 
 size_t buf_size = LINE_MAX;
-pthread_barrier_t sync;
+pthread_barrier_t sync_workers;
+pthread_cond_t updating_balance, balance_updated;
+pthread_mutex_t request_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t end_mutex = PTHREAD_MUTEX_INITIALIZER;
 account* account_array = NULL;
 // global file_reading is equivalent to argv[1]
 char* file_reading = NULL;
 unsigned int num_accounts = 0;
+unsigned int transactions_processed = 0;
+unsigned int update_running = 0;
+unsigned int workers_finished = 0;
+unsigned int final_update = 0;
+unsigned int num_updates = 0;
 // file pointer position immediately after account block
 long transactions_start = 0;
 
@@ -39,7 +50,7 @@ void* process_transaction(void* arg) {
         getline(&(chunk->local_buf), &buf_size, chunk->file_in);
     
     // all threads process concurrently after offsets are lined up
-    pthread_barrier_wait(&sync);
+    pthread_barrier_wait(&sync_workers);
     for (unsigned int i = 0; i < chunk->chunk_lines; i++) {
         // get line and parse it
         ssize_t read = getline(&(chunk->local_buf), &buf_size, chunk->file_in);
@@ -67,6 +78,21 @@ void* process_transaction(void* arg) {
             continue;
         }
 
+        // handler for balance checks, which do not contribute to requests
+        // just parse next line
+        if (*type == 'C') {
+            free_command_line(&current_line);
+            memset(&current_line, 0, 0);
+            continue;
+        }
+
+        pthread_mutex_lock(&request_mutex);
+        while (transactions_processed >= REQUEST_THRESHOLD) {
+            printf("%d number reached, pausing\n", syscall(SYS_gettid));
+            pthread_cond_wait(&balance_updated, &request_mutex);
+        }
+        pthread_mutex_unlock(&request_mutex);
+
         if (*type == 'T') {
             int destination_index = -1;
             double amount = atof(current_line.command_list[4]);
@@ -83,12 +109,6 @@ void* process_transaction(void* arg) {
             pthread_mutex_lock(&(account_array[destination_index].ac_lock));
             account_array[destination_index].balance += amount;
             pthread_mutex_unlock(&account_array[destination_index].ac_lock);
-        // check balance does nothing
-        // do not increment requests, just parse next line
-        } else if (*type == 'C') {
-            free_command_line(&current_line);
-            memset(&current_line, 0, 0);
-            continue;
         } else if (*type == 'D') {
             double amount = atof(current_line.command_list[3]);
             pthread_mutex_lock(&(account_array[account_index].ac_lock));
@@ -102,27 +122,68 @@ void* process_transaction(void* arg) {
             account_array[account_index].transaction_tracter += amount;
             pthread_mutex_unlock(&account_array[account_index].ac_lock);
         }
+
+        pthread_mutex_lock(&request_mutex);
+        transactions_processed++;
+        if (transactions_processed == REQUEST_THRESHOLD) {
+            pthread_cond_signal(&updating_balance);
+        }
+        pthread_mutex_unlock(&request_mutex);
+
         free_command_line(&(current_line));
         memset(&(current_line), 0, 0);
     }
+    printf("%d is done\n", syscall(SYS_gettid));
+    pthread_mutex_lock(&end_mutex);
+    workers_finished++;
+    pthread_mutex_unlock(&end_mutex);
+    pthread_cond_signal(&updating_balance);
     fclose(chunk->file_in);
     pthread_exit(0);
 }
 
 void* update_balance(void* arg) {
-    for (int i = 0; i < num_accounts; i++) {
-        // we'll need to release the account lock from worker in part3 somehow
-        // maybe if condition wait is before the locks in process it'll be OK
-        pthread_mutex_lock(&(account_array[i].ac_lock));
-        account_array[i].balance += account_array[i].transaction_tracter *
-                                    account_array[i].reward_rate;
-        // reset transaction tracker to prevent compounding interest
-        account_array[i].transaction_tracter = 0.;
-        // append is in critical section as well
-        FILE* acc = fopen(account_array[i].out_file, "a");
-        fprintf(acc, "Current Balance:\t%.2f\n", account_array[i].balance);
-        fclose(acc);
-        pthread_mutex_unlock(&(account_array[i].ac_lock));
+    while (1) {
+        pthread_mutex_lock(&end_mutex);
+        if (workers_finished == NUM_THREADS) {
+            // printf("workers finished: %d\n", workers_finished);
+            pthread_mutex_unlock(&end_mutex);
+            break;
+        } else {
+            pthread_mutex_unlock(&end_mutex);
+
+        }
+        // printf("workers finished: %d\n", workers_finished);
+        pthread_mutex_lock(&request_mutex);
+        printf("bank %d waiting now, update occurrence %d\n", syscall(SYS_gettid), num_updates);
+        while (transactions_processed < REQUEST_THRESHOLD && workers_finished != NUM_THREADS) {
+            pthread_cond_wait(&updating_balance, &request_mutex);
+        }
+        // safety check for if bank thread got stuck waiting for end condition
+        // (only happens if final update queues for end_mutex before final worker thread
+        // increments workers_finished to NUM_THREADS)
+        // parent thread sends an extra signal after all worker threads die
+        if (workers_finished == NUM_THREADS) {
+            final_update++;
+        }
+        for (int i = 0; i < num_accounts; i++) {
+            pthread_mutex_lock(&(account_array[i].ac_lock));
+            account_array[i].balance += account_array[i].transaction_tracter *
+                                        account_array[i].reward_rate;
+            // reset transaction tracker to prevent compounding interest
+            account_array[i].transaction_tracter = 0.;
+            // append is in critical section as well
+            FILE* acc = fopen(account_array[i].out_file, "a");
+            fprintf(acc, "Current Balance:\t%.2f\n", account_array[i].balance);
+            fclose(acc);
+            pthread_mutex_unlock(&(account_array[i].ac_lock));
+        }
+        if (!final_update) {
+            transactions_processed -= REQUEST_THRESHOLD;
+        }
+        num_updates++;
+        pthread_cond_broadcast(&balance_updated);
+        pthread_mutex_unlock(&request_mutex);
     }
     pthread_exit(0);
 }
@@ -223,6 +284,7 @@ int main(int argc, char** argv) {
     for (int i = 0; i < NUM_THREADS; i++) {
         file[i].chunk_lines = CHUNK_SIZE(transactions);
         file[i].local_buf = malloc(LINE_MAX);
+        file[i].lines_offset = 0;
         memset(file[i].local_buf, 0, LINE_MAX);
         if (extras > 0) {
             file[i].chunk_lines += 1;
@@ -239,21 +301,20 @@ int main(int argc, char** argv) {
 
     pthread_t workers[NUM_THREADS];
     pthread_t bank_thread;
-    pthread_barrier_init(&sync, NULL, NUM_THREADS);
-    printf("Processing transactions from %s...", argv[1]);
+    pthread_cond_init(&updating_balance, NULL);
+    pthread_cond_init(&balance_updated, NULL);
+    pthread_barrier_init(&sync_workers, NULL, NUM_THREADS);
+    printf("Processing transactions from %s...\n", argv[1]);
+    pthread_create(&bank_thread, NULL, update_balance, NULL);
     for (int i = 0; i < NUM_THREADS; i++) {
         pthread_create(&(workers[i]), NULL, process_transaction, &(file[i]));
     }
     // wait for all workers to finish
     for (int i = 0; i < NUM_THREADS; i++) {
-        pthread_join(workers[i], 0);
+        pthread_join(workers[i], NULL);
     }
-    pthread_barrier_destroy(&sync);
-    printf("done\n");
-
-    printf("Updating balances with reward rate...");
-    pthread_create(&bank_thread, NULL, update_balance, NULL);
-    pthread_join(bank_thread, 0);
+    pthread_join(bank_thread, NULL);
+    pthread_barrier_destroy(&sync_workers);
     printf("done\n");
 
     FILE* total_transactions = fopen("output.txt", "w");
