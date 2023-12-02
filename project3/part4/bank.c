@@ -36,7 +36,7 @@ account* account_array = NULL;
 char* file_reading = NULL;
 unsigned int num_accounts = 0;
 // counter for the number of transaction requests, used for threshold/balancing
-static unsigned int transactions_processed = 0;
+unsigned int transactions_processed = 0;
 // used to terminate bank thread after all workers completed
 unsigned short final_update = 0;
 // printed by parent thread
@@ -67,7 +67,7 @@ void* process_transaction(void* arg) {
 
         int account_index = -1;
         for (int i = 0; i < num_accounts; i++) {
-            if (strcmp(account, account_array[i].account_number) == 0) {
+            if (strncmp(account, account_array[i].account_number, 16) == 0) {
                 account_index = i;
                 break;
             }
@@ -75,7 +75,7 @@ void* process_transaction(void* arg) {
 
         // password validation
         // if password is invalid, free command line and parse next line
-        if (strcmp(password, account_array[account_index].password) != 0) {
+        if (strncmp(password, account_array[account_index].password, 8) != 0) {
             free_command_line(&current_line);
             memset(&current_line, 0, 0);
             continue;
@@ -230,6 +230,19 @@ int main(int argc, char** argv) {
     shared = mmap(NULL, sizeof(account) * num_accounts, PROT_READ | PROT_WRITE,
                   MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
+    for (int i = 0; i < num_accounts; i++) {
+        // null initializations of each account
+        // helps prevent memory errors
+        memset(account_array[i].account_number, 0, 17);
+        memset(account_array[i].password, 0, 9);
+        memset(account_array[i].out_file, 0, 64);
+        account_array[i].balance = 0.;
+        account_array[i].reward_rate = 0.;
+        account_array[i].transaction_tracter = 0.;
+        pthread_mutex_init(&(account_array[i].ac_lock), NULL);
+    }
+    memcpy(shared, account_array, sizeof(account) * num_accounts);
+
     // user defined signal used to indicate to parent when child is done reading
     // and to child when parent is done writing
     sigset_t sharing;
@@ -253,35 +266,12 @@ int main(int argc, char** argv) {
         printf("PuddlesBank received signal\n");
         // read populated accounts
         memcpy(account_array, shared, sizeof(account) * num_accounts);
-        // update populated accounts with appropriate values
-        for (int i = 0; i < num_accounts; i++) {
-            // account number
-            memset(account_array[i].out_file, '\0', 64);
-            snprintf(account_array[i].out_file, 63, "./output_savings/%s.txt",
-                     account_array[i].account_number);
-            FILE* acc = fopen(account_array[i].out_file, "w");
-            fprintf(acc, "account %d:\n", i);
-            fclose(acc);
-            // initial starting balance is 20% of original balance
-            account_array[i].balance *= 0.2;
-            // flat 2% reward rate
-            account_array[i].reward_rate = 0.02;
-        }
         printf("PuddlesBank: finished updating accounts, signaling DuckBank\n");
         kill(getppid(), SIGUSR1);
     } else { // parent process - duck bank
         printf("Populating accounts...\n");
         mkdir("output", 0777);
         for (int i = 0; i < num_accounts; i++) {
-            // null initializations of each account
-            // helps prevent memory errors
-            memset(account_array[i].account_number, 0, 17);
-            memset(account_array[i].password, 0, 9);
-            memset(account_array[i].out_file, 0, 64);
-            account_array[i].balance = 0.;
-            account_array[i].reward_rate = 0.;
-            account_array[i].transaction_tracter = 0.;
-            pthread_mutex_init(&(account_array[i].ac_lock), NULL);
             // index line
             getline(&buf, &buf_size, file_in);
             // account number line
@@ -304,10 +294,24 @@ int main(int argc, char** argv) {
         }
         memcpy(shared, account_array, sizeof(account) * num_accounts);
         printf("DuckBank: finished parsing accounts, signaling PuddlesBank\n");
+        for (int i = 0; i < num_accounts; i++) {
+            // account number
+            memset(shared[i].out_file, '\0', 64);
+            snprintf(shared[i].out_file, 63, "./output_savings/%s.txt",
+                     shared[i].account_number);
+            FILE* acc = fopen(shared[i].out_file, "w");
+            fprintf(acc, "account %d:\n", i);
+            fclose(acc);
+            // initial starting balance is 20% of original balance
+            shared[i].balance *= 0.2;
+            // flat 2% reward rate
+            shared[i].reward_rate = 0.02;
+        }
         kill(puddles_bank, SIGUSR1);
         printf("Waiting for PuddlesBank\n");
         sigwait(&sharing, &sig);
         printf("DuckBank received signal\n");
+        munmap(shared, sizeof(account) * num_accounts);
         printf("done\n");
     }
 
@@ -371,8 +375,6 @@ int main(int argc, char** argv) {
         free(file[i].local_buf);
     }
     free(file);
-
-    munmap(shared, sizeof(account) * num_accounts);
     fclose(file_in);
     free(account_array);
     free(buf);
