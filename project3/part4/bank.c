@@ -43,6 +43,8 @@ unsigned short final_update = 0;
 unsigned int num_updates = 0;
 // file pointer position immediately after account block
 long transactions_start = 0;
+// for final output file printing
+unsigned short is_parent = 0;
 
 void* process_transaction(void* arg) {
     file_chunk* chunk = (file_chunk*)arg;
@@ -269,6 +271,7 @@ int main(int argc, char** argv) {
         printf("PuddlesBank: finished updating accounts, signaling DuckBank\n");
         kill(getppid(), SIGUSR1);
     } else { // parent process - duck bank
+        is_parent++;
         printf("Populating accounts...\n");
         mkdir("output", 0777);
         for (int i = 0; i < num_accounts; i++) {
@@ -364,11 +367,13 @@ int main(int argc, char** argv) {
     pthread_barrier_destroy(&sync_workers);
     printf("done\n");
 
-    FILE* total_transactions = fopen("output.txt", "w");
-    for (int i = 0; i < num_accounts; i++) {
-        fprintf(total_transactions, "%d balance:\t%.2f\n\n", i, account_array[i].balance);
+    if (is_parent) {
+        FILE* total_transactions = fopen("output.txt", "w");
+        for (int i = 0; i < num_accounts; i++) {
+            fprintf(total_transactions, "%d balance:\t%.2f\n\n", i, account_array[i].balance);
+        }
+        fclose(total_transactions);
     }
-    fclose(total_transactions);
 
     // free allocated chunk members
     for (int i = 0; i < NUM_THREADS; i++) {
