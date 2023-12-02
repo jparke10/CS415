@@ -51,6 +51,7 @@ bank
 
 # Project 3 output files
 
+output_savings
 output
 output.txt
 log1.txt
