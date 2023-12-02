@@ -28,15 +28,15 @@ size_t buf_size = LINE_MAX;
 pthread_barrier_t sync_workers;
 pthread_cond_t updating_balance, balance_updated;
 pthread_mutex_t request_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t end_mutex = PTHREAD_MUTEX_INITIALIZER;
 account* account_array = NULL;
 // global file_reading is equivalent to argv[1]
 char* file_reading = NULL;
 unsigned int num_accounts = 0;
+// counter for the number of transaction requests, used for threshold/balancing
 unsigned int transactions_processed = 0;
-unsigned int update_running = 0;
-unsigned int workers_finished = 0;
-unsigned int final_update = 0;
+// used to terminate bank thread after all workers completed
+unsigned short final_update = 0;
+// printed by parent thread
 unsigned int num_updates = 0;
 // file pointer position immediately after account block
 long transactions_start = 0;
@@ -134,34 +134,19 @@ void* process_transaction(void* arg) {
         memset(&(current_line), 0, 0);
     }
     printf("%d is done\n", syscall(SYS_gettid));
-    pthread_mutex_lock(&end_mutex);
-    workers_finished++;
-    pthread_mutex_unlock(&end_mutex);
     fclose(chunk->file_in);
     pthread_exit(0);
 }
 
 void* update_balance(void* arg) {
     while (1) {
-        pthread_mutex_lock(&end_mutex);
-        if (workers_finished == NUM_THREADS) {
-            // printf("workers finished: %d\n", workers_finished);
-            pthread_mutex_unlock(&end_mutex);
-            break;
-        } else {
-            pthread_mutex_unlock(&end_mutex);
-
-        }
-        // printf("workers finished: %d\n", workers_finished);
         pthread_mutex_lock(&request_mutex);
         printf("bank %d waiting now, update occurrence %d\n", syscall(SYS_gettid), num_updates);
         while (transactions_processed < REQUEST_THRESHOLD && !final_update) {
             pthread_cond_wait(&updating_balance, &request_mutex);
         }
-        // safety check for if bank thread got stuck waiting for end condition
-        // (only happens if final update queues for end_mutex before final worker thread
-        // increments workers_finished to NUM_THREADS)
-        // parent thread sends an extra signal after all worker threads die
+        // for termination of bank after the last balance update occurs
+        // parent thread sends an extra signal to unpause after all worker threads die
         if (final_update) {
             printf("determined no update was needed - bank exiting\n");
             pthread_mutex_unlock(&request_mutex);
