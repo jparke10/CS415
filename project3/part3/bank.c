@@ -139,6 +139,10 @@ void* process_transaction(void* arg) {
 }
 
 void* update_balance(void* arg) {
+    // tracks the total sum of all transactions tracked
+    // if this is 0, no transactions have been processed since the last update
+    // (workers are done)
+    double tracker_sum = 0.;
     while (1) {
         pthread_mutex_lock(&request_mutex);
         printf("bank %d waiting now, update occurrence %d\n", syscall(SYS_gettid), num_updates);
@@ -147,7 +151,10 @@ void* update_balance(void* arg) {
         }
         // for termination of bank after the last balance update occurs
         // parent thread sends an extra signal to unpause after all worker threads die
-        if (final_update) {
+        tracker_sum = 0.;
+        for (int i = 0; i < num_accounts; i++)
+            tracker_sum += account_array[i].transaction_tracter;
+        if (tracker_sum == 0) {
             printf("determined no update was needed - bank exiting\n");
             pthread_mutex_unlock(&request_mutex);
             pthread_exit(0);
